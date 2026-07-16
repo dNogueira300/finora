@@ -31,6 +31,7 @@ ThemeData finoraTheme() {
       filled: true,
       fillColor: FinoraColors.surface,
       contentPadding: const EdgeInsets.symmetric(horizontal: 16, vertical: 14),
+      constraints: const BoxConstraints(minHeight: 48),
       border: OutlineInputBorder(
         borderRadius: BorderRadius.circular(12),
         borderSide: const BorderSide(color: FinoraColors.border),
