@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import 'core/env.dart';
+import 'core/finora_theme.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -16,9 +17,10 @@ class FinoraApp extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return const MaterialApp(
+    return MaterialApp(
       title: 'Finora',
-      home: Scaffold(body: Center(child: Text('Finora'))),
+      theme: finoraTheme(),
+      home: const Scaffold(body: Center(child: Text('Finora'))),
     );
   }
 }
