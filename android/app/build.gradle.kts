@@ -7,7 +7,8 @@ plugins {
 android {
     namespace = "com.finora.finora"
     compileSdk = flutter.compileSdkVersion
-    ndkVersion = flutter.ndkVersion
+    // ndkVersion omitido: ningun plugin compila codigo nativo propio y la
+    // descarga del NDK (~1GB) fallaba en este entorno; sqlite3 llega precompilado.
 
     compileOptions {
         sourceCompatibility = JavaVersion.VERSION_17
