@@ -1,3 +1,5 @@
+-- Migracion inicial Finora. Ejecutar UNA sola vez por proyecto (sin IF NOT EXISTS a proposito).
+
 -- Plantilla de tabla sincronizable: id lo genera el cliente (uuid v4).
 create table public.accounts (
   id uuid primary key,
@@ -29,8 +31,8 @@ create table public.categories (
 create table public.transactions (
   id uuid primary key,
   user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
-  account_id uuid not null,
-  category_id uuid not null,
+  account_id uuid not null references public.accounts (id) on delete cascade,
+  category_id uuid not null references public.categories (id) on delete cascade,
   kind text not null check (kind in ('expense','income')),
   amount_cents bigint not null,
   note text,
@@ -53,7 +55,8 @@ create table public.savings_goals (
 
 create table public.user_settings (
   id uuid primary key references auth.users (id) on delete cascade,
-  user_id uuid not null default auth.uid(),
+  user_id uuid not null default auth.uid() references auth.users (id) on delete cascade,
+  constraint user_settings_id_matches_user check (id = user_id),
   monthly_limit_cents bigint,
   alert_days_before_due int not null default 3,
   updated_at timestamptz not null,
