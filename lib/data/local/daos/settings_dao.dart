@@ -12,5 +12,7 @@ class SettingsDao extends DatabaseAccessor<AppDatabase> with _$SettingsDaoMixin 
       (select(userSettings)..where((s) => s.id.equals(userId))).getSingleOrNull();
 
   Future<void> upsert(UserSettingsCompanion c) =>
-      into(userSettings).insertOnConflictUpdate(c.copyWith(isDirty: const Value(true)));
+      into(userSettings).insertOnConflictUpdate(c.copyWith(
+          isDirty: const Value(true),
+          updatedAt: Value(DateTime.now().toUtc())));
 }

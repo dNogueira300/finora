@@ -14,7 +14,9 @@ class CategoriesDao extends DatabaseAccessor<AppDatabase> with _$CategoriesDaoMi
       .watch();
 
   Future<void> upsert(CategoriesCompanion c) =>
-      into(categories).insertOnConflictUpdate(c.copyWith(isDirty: const Value(true)));
+      into(categories).insertOnConflictUpdate(c.copyWith(
+          isDirty: const Value(true),
+          updatedAt: Value(DateTime.now().toUtc())));
 
   Future<int> countAll() async {
     final count = categories.id.count();

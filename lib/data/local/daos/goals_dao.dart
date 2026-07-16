@@ -14,7 +14,9 @@ class GoalsDao extends DatabaseAccessor<AppDatabase> with _$GoalsDaoMixin {
       .watch();
 
   Future<void> upsert(SavingsGoalsCompanion c) =>
-      into(savingsGoals).insertOnConflictUpdate(c.copyWith(isDirty: const Value(true)));
+      into(savingsGoals).insertOnConflictUpdate(c.copyWith(
+          isDirty: const Value(true),
+          updatedAt: Value(DateTime.now().toUtc())));
 
   Future<void> softDelete(String id) =>
       (update(savingsGoals)..where((g) => g.id.equals(id))).write(SavingsGoalsCompanion(

@@ -30,8 +30,9 @@ class TransactionsDao extends DatabaseAccessor<AppDatabase> with _$TransactionsD
   }
 
   Future<void> insertTxn(TransactionsCompanion c) =>
-      into(transactions).insertOnConflictUpdate(
-          c.copyWith(isDirty: const Value(true)));
+      into(transactions).insertOnConflictUpdate(c.copyWith(
+          isDirty: const Value(true),
+          updatedAt: Value(DateTime.now().toUtc())));
 
   Future<void> softDelete(String id) =>
       (update(transactions)..where((t) => t.id.equals(id))).write(

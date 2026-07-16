@@ -14,7 +14,9 @@ class AccountsDao extends DatabaseAccessor<AppDatabase> with _$AccountsDaoMixin 
       .watch();
 
   Future<void> upsert(AccountsCompanion c) =>
-      into(accounts).insertOnConflictUpdate(c.copyWith(isDirty: const Value(true)));
+      into(accounts).insertOnConflictUpdate(c.copyWith(
+          isDirty: const Value(true),
+          updatedAt: Value(DateTime.now().toUtc())));
 
   Future<void> softDelete(String id) =>
       (update(accounts)..where((a) => a.id.equals(id))).write(AccountsCompanion(
