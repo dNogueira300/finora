@@ -1,0 +1,16 @@
+name: supabase-keepalive
+on:
+  schedule:
+    - cron: '0 12 * * 1,4' # lunes y jueves 12:00 UTC
+  workflow_dispatch:
+jobs:
+  ping:
+    runs-on: ubuntu-latest
+    steps:
+      - name: Ping Supabase REST
+        run: |
+          code=$(curl -s -o /dev/null -w "%{http_code}" \
+            "${{ secrets.SUPABASE_URL }}/rest/v1/categories?select=id&limit=1" \
+            -H "apikey: ${{ secrets.SUPABASE_ANON_KEY }}")
+          echo "HTTP $code"
+          test "$code" = "200"
