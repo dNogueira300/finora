@@ -1,6 +1,7 @@
 import 'package:drift/drift.dart' hide Column;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../core/finora_colors.dart';
 import '../../core/money.dart';
@@ -57,7 +58,16 @@ class _CardsScreenState extends ConsumerState<CardsScreen> {
     ref.watch(_recentTxnsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Mis tarjetas')),
+      appBar: AppBar(
+        title: const Text('Mis tarjetas'),
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.calendar_month_outlined),
+            tooltip: 'Calendario de vencimientos',
+            onPressed: () => context.push('/calendar'),
+          ),
+        ],
+      ),
       floatingActionButton: FloatingActionButton.extended(
         onPressed: () => _openEditSheet(context),
         backgroundColor: FinoraColors.primary,
