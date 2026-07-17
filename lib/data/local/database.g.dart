@@ -2537,6 +2537,21 @@ class $UserSettingsTable extends UserSettings
     requiredDuringInsert: false,
     defaultValue: const Constant(3),
   );
+  static const VerificationMeta _biometricEnabledMeta = const VerificationMeta(
+    'biometricEnabled',
+  );
+  @override
+  late final GeneratedColumn<bool> biometricEnabled = GeneratedColumn<bool>(
+    'biometric_enabled',
+    aliasedName,
+    false,
+    type: DriftSqlType.bool,
+    requiredDuringInsert: false,
+    defaultConstraints: GeneratedColumn.constraintIsAlways(
+      'CHECK ("biometric_enabled" IN (0, 1))',
+    ),
+    defaultValue: const Constant(false),
+  );
   @override
   List<GeneratedColumn> get $columns => [
     id,
@@ -2545,6 +2560,7 @@ class $UserSettingsTable extends UserSettings
     isDirty,
     monthlyLimitCents,
     alertDaysBeforeDue,
+    biometricEnabled,
   ];
   @override
   String get aliasedName => _alias ?? actualTableName;
@@ -2601,6 +2617,15 @@ class $UserSettingsTable extends UserSettings
         ),
       );
     }
+    if (data.containsKey('biometric_enabled')) {
+      context.handle(
+        _biometricEnabledMeta,
+        biometricEnabled.isAcceptableOrUnknown(
+          data['biometric_enabled']!,
+          _biometricEnabledMeta,
+        ),
+      );
+    }
     return context;
   }
 
@@ -2634,6 +2659,10 @@ class $UserSettingsTable extends UserSettings
         DriftSqlType.int,
         data['${effectivePrefix}alert_days_before_due'],
       )!,
+      biometricEnabled: attachedDatabase.typeMapping.read(
+        DriftSqlType.bool,
+        data['${effectivePrefix}biometric_enabled'],
+      )!,
     );
   }
 
@@ -2650,6 +2679,7 @@ class UserSetting extends DataClass implements Insertable<UserSetting> {
   final bool isDirty;
   final int? monthlyLimitCents;
   final int alertDaysBeforeDue;
+  final bool biometricEnabled;
   const UserSetting({
     required this.id,
     required this.updatedAt,
@@ -2657,6 +2687,7 @@ class UserSetting extends DataClass implements Insertable<UserSetting> {
     required this.isDirty,
     this.monthlyLimitCents,
     required this.alertDaysBeforeDue,
+    required this.biometricEnabled,
   });
   @override
   Map<String, Expression> toColumns(bool nullToAbsent) {
@@ -2671,6 +2702,7 @@ class UserSetting extends DataClass implements Insertable<UserSetting> {
       map['monthly_limit_cents'] = Variable<int>(monthlyLimitCents);
     }
     map['alert_days_before_due'] = Variable<int>(alertDaysBeforeDue);
+    map['biometric_enabled'] = Variable<bool>(biometricEnabled);
     return map;
   }
 
@@ -2686,6 +2718,7 @@ class UserSetting extends DataClass implements Insertable<UserSetting> {
           ? const Value.absent()
           : Value(monthlyLimitCents),
       alertDaysBeforeDue: Value(alertDaysBeforeDue),
+      biometricEnabled: Value(biometricEnabled),
     );
   }
 
@@ -2701,6 +2734,7 @@ class UserSetting extends DataClass implements Insertable<UserSetting> {
       isDirty: serializer.fromJson<bool>(json['isDirty']),
       monthlyLimitCents: serializer.fromJson<int?>(json['monthlyLimitCents']),
       alertDaysBeforeDue: serializer.fromJson<int>(json['alertDaysBeforeDue']),
+      biometricEnabled: serializer.fromJson<bool>(json['biometricEnabled']),
     );
   }
   @override
@@ -2713,6 +2747,7 @@ class UserSetting extends DataClass implements Insertable<UserSetting> {
       'isDirty': serializer.toJson<bool>(isDirty),
       'monthlyLimitCents': serializer.toJson<int?>(monthlyLimitCents),
       'alertDaysBeforeDue': serializer.toJson<int>(alertDaysBeforeDue),
+      'biometricEnabled': serializer.toJson<bool>(biometricEnabled),
     };
   }
 
@@ -2723,6 +2758,7 @@ class UserSetting extends DataClass implements Insertable<UserSetting> {
     bool? isDirty,
     Value<int?> monthlyLimitCents = const Value.absent(),
     int? alertDaysBeforeDue,
+    bool? biometricEnabled,
   }) => UserSetting(
     id: id ?? this.id,
     updatedAt: updatedAt ?? this.updatedAt,
@@ -2732,6 +2768,7 @@ class UserSetting extends DataClass implements Insertable<UserSetting> {
         ? monthlyLimitCents.value
         : this.monthlyLimitCents,
     alertDaysBeforeDue: alertDaysBeforeDue ?? this.alertDaysBeforeDue,
+    biometricEnabled: biometricEnabled ?? this.biometricEnabled,
   );
   UserSetting copyWithCompanion(UserSettingsCompanion data) {
     return UserSetting(
@@ -2745,6 +2782,9 @@ class UserSetting extends DataClass implements Insertable<UserSetting> {
       alertDaysBeforeDue: data.alertDaysBeforeDue.present
           ? data.alertDaysBeforeDue.value
           : this.alertDaysBeforeDue,
+      biometricEnabled: data.biometricEnabled.present
+          ? data.biometricEnabled.value
+          : this.biometricEnabled,
     );
   }
 
@@ -2756,7 +2796,8 @@ class UserSetting extends DataClass implements Insertable<UserSetting> {
           ..write('deletedAt: $deletedAt, ')
           ..write('isDirty: $isDirty, ')
           ..write('monthlyLimitCents: $monthlyLimitCents, ')
-          ..write('alertDaysBeforeDue: $alertDaysBeforeDue')
+          ..write('alertDaysBeforeDue: $alertDaysBeforeDue, ')
+          ..write('biometricEnabled: $biometricEnabled')
           ..write(')'))
         .toString();
   }
@@ -2769,6 +2810,7 @@ class UserSetting extends DataClass implements Insertable<UserSetting> {
     isDirty,
     monthlyLimitCents,
     alertDaysBeforeDue,
+    biometricEnabled,
   );
   @override
   bool operator ==(Object other) =>
@@ -2779,7 +2821,8 @@ class UserSetting extends DataClass implements Insertable<UserSetting> {
           other.deletedAt == this.deletedAt &&
           other.isDirty == this.isDirty &&
           other.monthlyLimitCents == this.monthlyLimitCents &&
-          other.alertDaysBeforeDue == this.alertDaysBeforeDue);
+          other.alertDaysBeforeDue == this.alertDaysBeforeDue &&
+          other.biometricEnabled == this.biometricEnabled);
 }
 
 class UserSettingsCompanion extends UpdateCompanion<UserSetting> {
@@ -2789,6 +2832,7 @@ class UserSettingsCompanion extends UpdateCompanion<UserSetting> {
   final Value<bool> isDirty;
   final Value<int?> monthlyLimitCents;
   final Value<int> alertDaysBeforeDue;
+  final Value<bool> biometricEnabled;
   final Value<int> rowid;
   const UserSettingsCompanion({
     this.id = const Value.absent(),
@@ -2797,6 +2841,7 @@ class UserSettingsCompanion extends UpdateCompanion<UserSetting> {
     this.isDirty = const Value.absent(),
     this.monthlyLimitCents = const Value.absent(),
     this.alertDaysBeforeDue = const Value.absent(),
+    this.biometricEnabled = const Value.absent(),
     this.rowid = const Value.absent(),
   });
   UserSettingsCompanion.insert({
@@ -2806,6 +2851,7 @@ class UserSettingsCompanion extends UpdateCompanion<UserSetting> {
     this.isDirty = const Value.absent(),
     this.monthlyLimitCents = const Value.absent(),
     this.alertDaysBeforeDue = const Value.absent(),
+    this.biometricEnabled = const Value.absent(),
     this.rowid = const Value.absent(),
   }) : id = Value(id),
        updatedAt = Value(updatedAt);
@@ -2816,6 +2862,7 @@ class UserSettingsCompanion extends UpdateCompanion<UserSetting> {
     Expression<bool>? isDirty,
     Expression<int>? monthlyLimitCents,
     Expression<int>? alertDaysBeforeDue,
+    Expression<bool>? biometricEnabled,
     Expression<int>? rowid,
   }) {
     return RawValuesInsertable({
@@ -2826,6 +2873,7 @@ class UserSettingsCompanion extends UpdateCompanion<UserSetting> {
       if (monthlyLimitCents != null) 'monthly_limit_cents': monthlyLimitCents,
       if (alertDaysBeforeDue != null)
         'alert_days_before_due': alertDaysBeforeDue,
+      if (biometricEnabled != null) 'biometric_enabled': biometricEnabled,
       if (rowid != null) 'rowid': rowid,
     });
   }
@@ -2837,6 +2885,7 @@ class UserSettingsCompanion extends UpdateCompanion<UserSetting> {
     Value<bool>? isDirty,
     Value<int?>? monthlyLimitCents,
     Value<int>? alertDaysBeforeDue,
+    Value<bool>? biometricEnabled,
     Value<int>? rowid,
   }) {
     return UserSettingsCompanion(
@@ -2846,6 +2895,7 @@ class UserSettingsCompanion extends UpdateCompanion<UserSetting> {
       isDirty: isDirty ?? this.isDirty,
       monthlyLimitCents: monthlyLimitCents ?? this.monthlyLimitCents,
       alertDaysBeforeDue: alertDaysBeforeDue ?? this.alertDaysBeforeDue,
+      biometricEnabled: biometricEnabled ?? this.biometricEnabled,
       rowid: rowid ?? this.rowid,
     );
   }
@@ -2871,6 +2921,9 @@ class UserSettingsCompanion extends UpdateCompanion<UserSetting> {
     if (alertDaysBeforeDue.present) {
       map['alert_days_before_due'] = Variable<int>(alertDaysBeforeDue.value);
     }
+    if (biometricEnabled.present) {
+      map['biometric_enabled'] = Variable<bool>(biometricEnabled.value);
+    }
     if (rowid.present) {
       map['rowid'] = Variable<int>(rowid.value);
     }
@@ -2886,6 +2939,7 @@ class UserSettingsCompanion extends UpdateCompanion<UserSetting> {
           ..write('isDirty: $isDirty, ')
           ..write('monthlyLimitCents: $monthlyLimitCents, ')
           ..write('alertDaysBeforeDue: $alertDaysBeforeDue, ')
+          ..write('biometricEnabled: $biometricEnabled, ')
           ..write('rowid: $rowid')
           ..write(')'))
         .toString();
@@ -4696,6 +4750,7 @@ typedef $$UserSettingsTableCreateCompanionBuilder =
       Value<bool> isDirty,
       Value<int?> monthlyLimitCents,
       Value<int> alertDaysBeforeDue,
+      Value<bool> biometricEnabled,
       Value<int> rowid,
     });
 typedef $$UserSettingsTableUpdateCompanionBuilder =
@@ -4706,6 +4761,7 @@ typedef $$UserSettingsTableUpdateCompanionBuilder =
       Value<bool> isDirty,
       Value<int?> monthlyLimitCents,
       Value<int> alertDaysBeforeDue,
+      Value<bool> biometricEnabled,
       Value<int> rowid,
     });
 
@@ -4745,6 +4801,11 @@ class $$UserSettingsTableFilterComposer
 
   ColumnFilters<int> get alertDaysBeforeDue => $composableBuilder(
     column: $table.alertDaysBeforeDue,
+    builder: (column) => ColumnFilters(column),
+  );
+
+  ColumnFilters<bool> get biometricEnabled => $composableBuilder(
+    column: $table.biometricEnabled,
     builder: (column) => ColumnFilters(column),
   );
 }
@@ -4787,6 +4848,11 @@ class $$UserSettingsTableOrderingComposer
     column: $table.alertDaysBeforeDue,
     builder: (column) => ColumnOrderings(column),
   );
+
+  ColumnOrderings<bool> get biometricEnabled => $composableBuilder(
+    column: $table.biometricEnabled,
+    builder: (column) => ColumnOrderings(column),
+  );
 }
 
 class $$UserSettingsTableAnnotationComposer
@@ -4817,6 +4883,11 @@ class $$UserSettingsTableAnnotationComposer
 
   GeneratedColumn<int> get alertDaysBeforeDue => $composableBuilder(
     column: $table.alertDaysBeforeDue,
+    builder: (column) => column,
+  );
+
+  GeneratedColumn<bool> get biometricEnabled => $composableBuilder(
+    column: $table.biometricEnabled,
     builder: (column) => column,
   );
 }
@@ -4858,6 +4929,7 @@ class $$UserSettingsTableTableManager
                 Value<bool> isDirty = const Value.absent(),
                 Value<int?> monthlyLimitCents = const Value.absent(),
                 Value<int> alertDaysBeforeDue = const Value.absent(),
+                Value<bool> biometricEnabled = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => UserSettingsCompanion(
                 id: id,
@@ -4866,6 +4938,7 @@ class $$UserSettingsTableTableManager
                 isDirty: isDirty,
                 monthlyLimitCents: monthlyLimitCents,
                 alertDaysBeforeDue: alertDaysBeforeDue,
+                biometricEnabled: biometricEnabled,
                 rowid: rowid,
               ),
           createCompanionCallback:
@@ -4876,6 +4949,7 @@ class $$UserSettingsTableTableManager
                 Value<bool> isDirty = const Value.absent(),
                 Value<int?> monthlyLimitCents = const Value.absent(),
                 Value<int> alertDaysBeforeDue = const Value.absent(),
+                Value<bool> biometricEnabled = const Value.absent(),
                 Value<int> rowid = const Value.absent(),
               }) => UserSettingsCompanion.insert(
                 id: id,
@@ -4884,6 +4958,7 @@ class $$UserSettingsTableTableManager
                 isDirty: isDirty,
                 monthlyLimitCents: monthlyLimitCents,
                 alertDaysBeforeDue: alertDaysBeforeDue,
+                biometricEnabled: biometricEnabled,
                 rowid: rowid,
               ),
           withReferenceMapper: (p0) => p0

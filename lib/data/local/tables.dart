@@ -60,6 +60,8 @@ class UserSettings extends Table with SyncColumns {
   // id = user_id de Supabase
   IntColumn get monthlyLimitCents => integer().nullable()();
   IntColumn get alertDaysBeforeDue => integer().withDefault(const Constant(3))();
+  // Solo local: no existe en remoto, excluir del JSON de push (Task 11).
+  BoolColumn get biometricEnabled => boolean().withDefault(const Constant(false))();
   @override
   Set<Column> get primaryKey => {id};
 }
