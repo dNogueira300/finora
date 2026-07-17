@@ -1,0 +1,329 @@
+import 'package:drift/drift.dart' hide Column;
+import 'package:flutter/material.dart';
+import 'package:flutter_riverpod/flutter_riverpod.dart';
+
+import '../../core/finora_colors.dart';
+import '../../core/money.dart';
+import '../../data/local/database.dart';
+import '../../data/sync/sync_providers.dart';
+import 'edit_account_sheet.dart';
+
+final _activeAccountsProvider = StreamProvider.autoDispose<List<Account>>((ref) {
+  return ref.watch(databaseProvider).accountsDao.watchActive();
+});
+
+/// `watchActive()` solo re-emite cuando cambia la tabla `accounts`: una
+/// transaccion nueva contra una cuenta no dispara por si sola un recalculo
+/// de saldo/uso de linea de credito (misma limitacion documentada en
+/// `dashboard_screen.dart` para `monthTotalsProvider`/`totalBalanceProvider`).
+/// Se observa este stream unicamente como "trigger" para que `CardsScreen`
+/// reconstruya sus `FutureBuilder` de `balanceCents` cuando se registra un
+/// gasto o un pago.
+final _recentTxnsProvider = StreamProvider.autoDispose<List<Txn>>((ref) {
+  return ref.watch(databaseProvider).transactionsDao.watchRecent(50);
+});
+
+/// Pantalla "Mis Tarjetas" (referencia Stitch "Mis Tarjetas Premium"):
+/// carrusel de tarjetas visuales para cuentas `credit`/`debit` (con barra de
+/// uso de linea para `credit`) y lista de cuentas `cash`/`wallet` con su
+/// saldo. FAB abre `EditAccountSheet` para crear una cuenta nueva; long-press
+/// sobre una cuenta abre el menu Editar/Archivar/Eliminar.
+class CardsScreen extends ConsumerWidget {
+  const CardsScreen({super.key});
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final accountsAsync = ref.watch(_activeAccountsProvider);
+    // Solo se usa como trigger de invalidacion (ver nota del provider).
+    ref.watch(_recentTxnsProvider);
+
+    return Scaffold(
+      appBar: AppBar(title: const Text('Mis tarjetas')),
+      floatingActionButton: FloatingActionButton.extended(
+        onPressed: () => _openEditSheet(context),
+        backgroundColor: FinoraColors.primary,
+        icon: const Icon(Icons.add, color: Colors.white),
+        label: const Text('Nueva cuenta', style: TextStyle(color: Colors.white)),
+      ),
+      body: SafeArea(
+        child: accountsAsync.when(
+          data: (accounts) {
+            if (accounts.isEmpty) {
+              return const _EmptyState();
+            }
+            final cardAccounts =
+                accounts.where((a) => a.type == 'credit' || a.type == 'debit').toList();
+            final walletAccounts =
+                accounts.where((a) => a.type == 'cash' || a.type == 'wallet').toList();
+            return ListView(
+              padding: const EdgeInsets.all(16),
+              children: [
+                if (cardAccounts.isNotEmpty) ...[
+                  Text('Tarjetas', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  SizedBox(
+                    height: 190,
+                    child: PageView(
+                      controller: PageController(viewportFraction: .9),
+                      children: [
+                        for (final a in cardAccounts)
+                          Padding(
+                            padding: const EdgeInsets.symmetric(horizontal: 6),
+                            child: _AccountCard(
+                              account: a,
+                              onLongPress: () => showAccountMenu(context, ref, a),
+                            ),
+                          ),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: 24),
+                ],
+                if (walletAccounts.isNotEmpty) ...[
+                  Text('Efectivo y billeteras', style: Theme.of(context).textTheme.titleMedium),
+                  const SizedBox(height: 8),
+                  for (final a in walletAccounts)
+                    _WalletTile(
+                      account: a,
+                      onLongPress: () => showAccountMenu(context, ref, a),
+                    ),
+                ],
+              ],
+            );
+          },
+          loading: () => const Center(child: CircularProgressIndicator()),
+          error: (e, _) => Center(child: Text('No se pudo cargar: $e')),
+        ),
+      ),
+    );
+  }
+}
+
+Future<void> _openEditSheet(BuildContext context, {Account? account}) {
+  return showModalBottomSheet(
+    context: context,
+    isScrollControlled: true,
+    useSafeArea: true,
+    builder: (_) => EditAccountSheet(account: account),
+  );
+}
+
+/// Menu de acciones de una cuenta (Editar/Archivar/Eliminar), abierto con
+/// long-press. Publica (sin `_`) para poder invocarla directamente desde los
+/// tests de widget sin depender de gestos de long-press.
+Future<void> showAccountMenu(BuildContext context, WidgetRef ref, Account account) async {
+  final action = await showModalBottomSheet<String>(
+    context: context,
+    builder: (ctx) => SafeArea(
+      child: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          ListTile(
+            leading: const Icon(Icons.edit_outlined),
+            title: const Text('Editar'),
+            onTap: () => Navigator.of(ctx).pop('edit'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.archive_outlined),
+            title: const Text('Archivar'),
+            onTap: () => Navigator.of(ctx).pop('archive'),
+          ),
+          ListTile(
+            leading: const Icon(Icons.delete_outline, color: FinoraColors.expense),
+            title: const Text('Eliminar', style: TextStyle(color: FinoraColors.expense)),
+            onTap: () => Navigator.of(ctx).pop('delete'),
+          ),
+        ],
+      ),
+    ),
+  );
+
+  if (!context.mounted || action == null) return;
+  final db = ref.read(databaseProvider);
+  switch (action) {
+    case 'edit':
+      await _openEditSheet(context, account: account);
+    case 'archive':
+      // `AccountsDao.upsert` hace `insertOnConflictUpdate`, que valida como si
+      // fuera un INSERT nuevo: las columnas NOT NULL sin default (`name`,
+      // `type`) deben venir presentes aunque la fila ya exista. Se reenvian
+      // todos los campos actuales de `account` y solo se cambia `isArchived`.
+      await db.accountsDao.upsert(AccountsCompanion.insert(
+        id: account.id,
+        name: account.name,
+        type: account.type,
+        initialBalanceCents: Value(account.initialBalanceCents),
+        creditLimitCents: Value(account.creditLimitCents),
+        statementDay: Value(account.statementDay),
+        paymentDueDay: Value(account.paymentDueDay),
+        last4: Value(account.last4),
+        color: Value(account.color),
+        isArchived: const Value(true),
+        updatedAt: DateTime.now().toUtc(),
+      ));
+    case 'delete':
+      final confirmed = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Eliminar cuenta'),
+          content: Text('¿Eliminar "${account.name}"? Esta acción no se puede deshacer.'),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(false),
+              child: const Text('Cancelar'),
+            ),
+            TextButton(
+              onPressed: () => Navigator.of(ctx).pop(true),
+              child: const Text('Eliminar', style: TextStyle(color: FinoraColors.expense)),
+            ),
+          ],
+        ),
+      );
+      if (confirmed == true) {
+        await db.accountsDao.softDelete(account.id);
+      }
+  }
+}
+
+class _EmptyState extends StatelessWidget {
+  const _EmptyState();
+
+  @override
+  Widget build(BuildContext context) {
+    return Center(
+      child: Padding(
+        padding: const EdgeInsets.all(32),
+        child: Text(
+          'Aún no tienes cuentas.\nToca "Nueva cuenta" para crear la primera.',
+          textAlign: TextAlign.center,
+          style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: FinoraColors.textSecondary),
+        ),
+      ),
+    );
+  }
+}
+
+/// Tarjeta visual de una cuenta `credit`/`debit`: degradado con
+/// `account.color`, nombre, `**** {last4}` y tipo. Para `credit` agrega la
+/// barra de uso de linea (ambar > 70%, rojo > 90%) y "Disponible: S/ X".
+class _AccountCard extends ConsumerWidget {
+  const _AccountCard({required this.account, required this.onLongPress});
+  final Account account;
+  final VoidCallback onLongPress;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final db = ref.watch(databaseProvider);
+    return GestureDetector(
+      onLongPress: onLongPress,
+      child: Container(
+        height: 190,
+        decoration: BoxDecoration(
+          borderRadius: BorderRadius.circular(20),
+          gradient: LinearGradient(
+            colors: [Color(account.color), Color(account.color).withValues(alpha: .7)],
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+          ),
+        ),
+        padding: const EdgeInsets.all(20),
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            Row(
+              mainAxisAlignment: MainAxisAlignment.spaceBetween,
+              children: [
+                Expanded(
+                  child: Text(
+                    account.name,
+                    style: const TextStyle(color: Colors.white, fontWeight: FontWeight.w600, fontSize: 16),
+                    overflow: TextOverflow.ellipsis,
+                  ),
+                ),
+                const Icon(Icons.contactless, color: Colors.white70),
+              ],
+            ),
+            Text(accountTypeLabel(account.type), style: const TextStyle(color: Colors.white70, fontSize: 12)),
+            const Spacer(),
+            Text(
+              '****  ****  ****  ${account.last4 ?? '----'}',
+              style: const TextStyle(color: Colors.white, fontSize: 18, letterSpacing: 2),
+            ),
+            const SizedBox(height: 12),
+            FutureBuilder<int>(
+              future: db.accountsDao.balanceCents(account.id),
+              builder: (context, snapshot) {
+                final cents = snapshot.data;
+                if (account.type != 'credit') {
+                  return Text('Saldo: ${formatMoney(cents ?? 0)}',
+                      style: const TextStyle(color: Colors.white, fontSize: 13));
+                }
+                final limit = account.creditLimitCents ?? 0;
+                final usado = cents ?? 0;
+                final ratio = limit > 0 ? (usado / limit).clamp(0.0, 1.0) : 0.0;
+                final barColor = ratio > 0.9
+                    ? FinoraColors.expense
+                    : (ratio > 0.7 ? FinoraColors.warning : Colors.white);
+                final disponible = limit - usado;
+                return Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    ClipRRect(
+                      borderRadius: BorderRadius.circular(4),
+                      child: LinearProgressIndicator(
+                        value: ratio,
+                        minHeight: 6,
+                        backgroundColor: Colors.white24,
+                        valueColor: AlwaysStoppedAnimation(barColor),
+                      ),
+                    ),
+                    const SizedBox(height: 8),
+                    Text('Disponible: ${formatMoney(disponible)}',
+                        style: const TextStyle(color: Colors.white, fontSize: 13)),
+                  ],
+                );
+              },
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
+/// Fila de lista para una cuenta `cash`/`wallet` con su saldo actual.
+class _WalletTile extends ConsumerWidget {
+  const _WalletTile({required this.account, required this.onLongPress});
+  final Account account;
+  final VoidCallback onLongPress;
+
+  @override
+  Widget build(BuildContext context, WidgetRef ref) {
+    final db = ref.watch(databaseProvider);
+    return GestureDetector(
+      onLongPress: onLongPress,
+      child: Card(
+        margin: const EdgeInsets.only(bottom: 12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: ListTile(
+          leading: CircleAvatar(
+            backgroundColor: Color(account.color),
+            child: Icon(
+              account.type == 'wallet' ? Icons.account_balance_wallet : Icons.payments,
+              color: Colors.white,
+            ),
+          ),
+          title: Text(account.name),
+          subtitle: Text(accountTypeLabel(account.type)),
+          trailing: FutureBuilder<int>(
+            future: db.accountsDao.balanceCents(account.id),
+            builder: (context, snapshot) => Text(
+              formatMoney(snapshot.data ?? 0),
+              style: const TextStyle(fontWeight: FontWeight.w600),
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+}

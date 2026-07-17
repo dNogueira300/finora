@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import '../features/auth/auth_providers.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/lock_screen.dart';
+import '../features/accounts/cards_screen.dart';
 import '../features/dashboard/dashboard_screen.dart';
 import '../features/transactions/add_transaction_screen.dart';
 import 'app_shell.dart';
@@ -72,7 +73,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         builder: (context, state, child) => AppShell(child: child),
         routes: [
           GoRoute(path: '/', builder: (_, _) => const DashboardScreen()),
-          GoRoute(path: '/cards', builder: (_, _) => const _Placeholder('Mis tarjetas')),
+          GoRoute(path: '/cards', builder: (_, _) => const CardsScreen()),
           GoRoute(path: '/stats', builder: (_, _) => const _Placeholder('Estadísticas')),
           GoRoute(path: '/goals', builder: (_, _) => const _Placeholder('Metas')),
           GoRoute(path: '/settings', builder: (_, _) => const _Placeholder('Configuración')),
