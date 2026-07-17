@@ -13,8 +13,19 @@ import 'features/auth/lock_screen.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
+
+  // Sin --dart-define-from-file=env.json las constantes llegan vacias y la
+  // app fallaria recien en el primer request ("No host specified in URI").
+  // Mejor fallar al arrancar con instrucciones claras.
+  if (Env.supabaseUrl.isEmpty || Env.supabaseAnonKey.isEmpty) {
+    runApp(const _MissingConfigApp());
+    return;
+  }
+
   await Supabase.initialize(
-      url: Env.supabaseUrl, publishableKey: Env.supabaseAnonKey);
+    url: Env.supabaseUrl,
+    publishableKey: Env.supabaseAnonKey,
+  );
   Intl.defaultLocale = 'es_PE';
   await initializeDateFormatting('es_PE');
 
@@ -30,16 +41,17 @@ Future<void> main() async {
   final session = Supabase.instance.client.auth.currentSession;
   var locked = false;
   if (session != null) {
-    final settings =
-        await container.read(databaseProvider).settingsDao.get(session.user.id);
+    final settings = await container
+        .read(databaseProvider)
+        .settingsDao
+        .get(session.user.id);
     locked = settings?.biometricEnabled ?? false;
   }
   container.read(appLockedProvider.notifier).state = locked;
 
-  runApp(UncontrolledProviderScope(
-    container: container,
-    child: const FinoraApp(),
-  ));
+  runApp(
+    UncontrolledProviderScope(container: container, child: const FinoraApp()),
+  );
 }
 
 class FinoraApp extends ConsumerWidget {
@@ -49,11 +61,53 @@ class FinoraApp extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp.router(
       title: 'Finora',
+      debugShowCheckedModeBanner: false,
       theme: finoraTheme(),
       locale: const Locale('es'),
       supportedLocales: const [Locale('es'), Locale('en')],
       localizationsDelegates: GlobalMaterialLocalizations.delegates,
       routerConfig: ref.watch(routerProvider),
+    );
+  }
+}
+
+/// Pantalla de error cuando la app se lanza sin la configuracion de entorno.
+class _MissingConfigApp extends StatelessWidget {
+  const _MissingConfigApp();
+
+  @override
+  Widget build(BuildContext context) {
+    return MaterialApp(
+      title: 'Finora',
+      debugShowCheckedModeBanner: false,
+      home: Scaffold(
+        body: Padding(
+          padding: const EdgeInsets.all(24),
+          child: Center(
+            child: Column(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                const Icon(Icons.settings_suggest, size: 64),
+                const SizedBox(height: 16),
+                const Text(
+                  'Falta la configuración de entorno',
+                  style: TextStyle(fontSize: 18, fontWeight: FontWeight.w600),
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: 12),
+                Text(
+                  'Lanza la app con:\n'
+                  'flutter run --dart-define-from-file=env.json\n\n'
+                  'En Android Studio, selecciona la configuración '
+                  '"Finora (env)" en el menú de ejecución.',
+                  textAlign: TextAlign.center,
+                  style: TextStyle(color: Colors.grey.shade700),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
     );
   }
 }
