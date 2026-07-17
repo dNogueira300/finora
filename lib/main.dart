@@ -59,6 +59,7 @@ class FinoraApp extends ConsumerWidget {
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    ref.watch(syncCoordinatorProvider);
     return MaterialApp.router(
       title: 'Finora',
       debugShowCheckedModeBanner: false,
