@@ -254,4 +254,58 @@ void main() {
 
     await drainTimers(tester);
   });
+
+  testWidgets(
+      'el carrusel conserva la pagina tras un rebuild disparado por una transaccion nueva',
+      (tester) async {
+    await growTestSurface(tester);
+    await db.accountsDao.upsert(AccountsCompanion.insert(
+      id: 'cc1',
+      name: 'Visa Oro',
+      type: 'credit',
+      creditLimitCents: const Value(100000),
+      last4: const Value('1111'),
+      updatedAt: DateTime.now().toUtc(),
+    ));
+    await db.accountsDao.upsert(AccountsCompanion.insert(
+      id: 'cc2',
+      name: 'Master Black',
+      type: 'credit',
+      creditLimitCents: const Value(200000),
+      last4: const Value('2222'),
+      updatedAt: DateTime.now().toUtc(),
+    ));
+
+    await tester.pumpWidget(buildApp());
+    await tester.pumpAndSettle();
+
+    final controller = tester.widget<PageView>(find.byType(PageView)).controller!;
+    expect(controller.page, closeTo(0, 0.01));
+
+    // Desliza el carrusel a la segunda tarjeta.
+    await tester.drag(find.byType(PageView), const Offset(-800, 0));
+    await tester.pumpAndSettle();
+    expect(controller.page, closeTo(1, 0.01));
+
+    // Dispara un rebuild de `CardsScreen` insertando una transaccion (el
+    // mismo trigger que antes de la correccion reconstruia un
+    // `PageController` nuevo en cada `build` y reiniciaba el carrusel).
+    await db.transactionsDao.insertTxn(TransactionsCompanion.insert(
+      id: 't1',
+      accountId: 'cc1',
+      categoryId: 'c1',
+      kind: 'expense',
+      amountCents: 1000,
+      occurredAt: DateTime.now().toUtc(),
+      updatedAt: DateTime.now().toUtc(),
+    ));
+    await tester.pumpAndSettle();
+
+    // Mismo `PageController` (no se recreo) y sigue en la segunda pagina.
+    final controllerAfter = tester.widget<PageView>(find.byType(PageView)).controller!;
+    expect(identical(controller, controllerAfter), isTrue);
+    expect(controllerAfter.page, closeTo(1, 0.01));
+
+    await drainTimers(tester);
+  });
 }

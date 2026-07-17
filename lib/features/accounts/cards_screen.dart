@@ -28,11 +28,30 @@ final _recentTxnsProvider = StreamProvider.autoDispose<List<Txn>>((ref) {
 /// uso de linea para `credit`) y lista de cuentas `cash`/`wallet` con su
 /// saldo. FAB abre `EditAccountSheet` para crear una cuenta nueva; long-press
 /// sobre una cuenta abre el menu Editar/Archivar/Eliminar.
-class CardsScreen extends ConsumerWidget {
+class CardsScreen extends ConsumerStatefulWidget {
   const CardsScreen({super.key});
 
   @override
-  Widget build(BuildContext context, WidgetRef ref) {
+  ConsumerState<CardsScreen> createState() => _CardsScreenState();
+}
+
+class _CardsScreenState extends ConsumerState<CardsScreen> {
+  // Creado una unica vez (no en `build`): `CardsScreen` reconstruye su arbol
+  // cada vez que `_activeAccountsProvider`/`_recentTxnsProvider` emiten (p.
+  // ej. al registrar cualquier transaccion mientras la pantalla esta
+  // montada). Un `PageController` nuevo en cada `build` reiniciaria el
+  // carrusel a la primera pagina en cada rebuild, deshaciendo el swipe del
+  // usuario; se crea una sola vez aqui y se reutiliza entre rebuilds.
+  late final _pageController = PageController(viewportFraction: .9);
+
+  @override
+  void dispose() {
+    _pageController.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
     final accountsAsync = ref.watch(_activeAccountsProvider);
     // Solo se usa como trigger de invalidacion (ver nota del provider).
     ref.watch(_recentTxnsProvider);
@@ -64,7 +83,7 @@ class CardsScreen extends ConsumerWidget {
                   SizedBox(
                     height: 190,
                     child: PageView(
-                      controller: PageController(viewportFraction: .9),
+                      controller: _pageController,
                       children: [
                         for (final a in cardAccounts)
                           Padding(
