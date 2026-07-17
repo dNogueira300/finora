@@ -8,6 +8,7 @@ import '../features/auth/lock_screen.dart';
 import '../features/accounts/cards_screen.dart';
 import '../features/calendar/calendar_screen.dart';
 import '../features/dashboard/dashboard_screen.dart';
+import '../features/stats/stats_screen.dart';
 import '../features/transactions/add_transaction_screen.dart';
 import 'app_shell.dart';
 
@@ -75,7 +76,7 @@ final routerProvider = Provider<GoRouter>((ref) {
         routes: [
           GoRoute(path: '/', builder: (_, _) => const DashboardScreen()),
           GoRoute(path: '/cards', builder: (_, _) => const CardsScreen()),
-          GoRoute(path: '/stats', builder: (_, _) => const _Placeholder('Estadísticas')),
+          GoRoute(path: '/stats', builder: (_, _) => const StatsScreen()),
           GoRoute(path: '/goals', builder: (_, _) => const _Placeholder('Metas')),
           GoRoute(path: '/settings', builder: (_, _) => const _Placeholder('Configuración')),
         ],
