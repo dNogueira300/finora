@@ -16,7 +16,7 @@ class SupabaseRemote implements RemoteSource {
     var query = _client.from(table).select();
     if (since != null) {
       return List<Map<String, dynamic>>.from(
-          await query.gt('updated_at', since.toIso8601String()));
+          await query.gt('updated_at', since.toUtc().toIso8601String()));
     }
     return List<Map<String, dynamic>>.from(await query);
   }
