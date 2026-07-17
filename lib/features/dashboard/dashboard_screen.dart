@@ -8,6 +8,7 @@ import '../../core/finora_colors.dart';
 import '../../core/money.dart';
 import '../../data/local/database.dart';
 import '../../data/sync/sync_providers.dart';
+import '../alerts/alerts_screen.dart';
 import 'widgets/summary_card.dart';
 import 'widgets/txn_tile.dart';
 
@@ -123,6 +124,7 @@ class DashboardScreen extends ConsumerWidget {
     final balanceAsync = ref.watch(totalBalanceProvider);
     final totals = totalsAsync.valueOrNull;
     final goalsAsync = ref.watch(_goalsProvider);
+    final unreadCount = ref.watch(unreadCountProvider).valueOrNull ?? 0;
 
     return Scaffold(
       body: SafeArea(
@@ -135,10 +137,14 @@ class DashboardScreen extends ConsumerWidget {
                   child: Text(greeting, style: Theme.of(context).textTheme.titleLarge),
                 ),
                 _SyncIndicator(status: syncStatus),
-                IconButton(
-                  icon: const Icon(Icons.notifications_none_rounded),
-                  tooltip: 'Alertas',
-                  onPressed: () => context.push('/alerts'),
+                Badge(
+                  label: Text('$unreadCount'),
+                  isLabelVisible: unreadCount > 0,
+                  child: IconButton(
+                    icon: const Icon(Icons.notifications_none_rounded),
+                    tooltip: 'Alertas',
+                    onPressed: () => context.push('/alerts'),
+                  ),
                 ),
               ],
             ),

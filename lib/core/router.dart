@@ -6,6 +6,7 @@ import '../features/auth/auth_providers.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/lock_screen.dart';
 import '../features/accounts/cards_screen.dart';
+import '../features/alerts/alerts_screen.dart';
 import '../features/calendar/calendar_screen.dart';
 import '../features/dashboard/dashboard_screen.dart';
 import '../features/goals/goals_screen.dart';
@@ -84,7 +85,7 @@ final routerProvider = Provider<GoRouter>((ref) {
       ),
       GoRoute(path: '/add', builder: (_, _) => const AddTransactionScreen()),
       GoRoute(path: '/calendar', builder: (_, _) => const CalendarScreen()),
-      GoRoute(path: '/alerts', builder: (_, _) => const _Placeholder('Alertas')),
+      GoRoute(path: '/alerts', builder: (_, _) => const AlertsScreen()),
     ],
   );
 });

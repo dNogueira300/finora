@@ -8,6 +8,7 @@ import 'package:intl/date_symbol_data_local.dart';
 
 import 'package:finora/data/local/database.dart';
 import 'package:finora/data/sync/sync_providers.dart';
+import 'package:finora/features/alerts/alerts_dao_ext.dart';
 import 'package:finora/features/dashboard/dashboard_screen.dart';
 
 // La mayoria de estos tests no pumpean AppShell ni el router:
@@ -180,6 +181,31 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('pantalla metas'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets(
+      'la campana muestra un Badge "2" con alertas no leidas y desaparece tras marcar todas como leidas',
+      (tester) async {
+    await db.insertAlert('Límite de gasto alcanzado', 'Superaste tu límite mensual');
+    await db.insertAlert('Vencimiento de pago', 'Tu tarjeta vence mañana');
+
+    await tester.pumpWidget(buildApp());
+    await tester.pumpAndSettle();
+
+    expect(find.byType(Badge), findsOneWidget);
+    expect(find.text('2'), findsOneWidget);
+
+    await db.markAllRead();
+    await tester.pumpAndSettle();
+
+    // El Badge sigue en el arbol (envuelve la campana) pero sin label
+    // visible: `isLabelVisible: unreadCount > 0` (ver `dashboard_screen.dart`).
+    expect(find.byType(Badge), findsOneWidget);
+    expect(find.text('2'), findsNothing);
+    expect(find.text('0'), findsNothing);
 
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 1));
