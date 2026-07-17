@@ -41,6 +41,22 @@ final _activeAccountsProvider = StreamProvider.autoDispose<List<Account>>((ref) 
   return ref.watch(databaseProvider).accountsDao.watchActive();
 });
 
+final _goalsProvider = StreamProvider.autoDispose<List<SavingsGoal>>((ref) {
+  return ref.watch(databaseProvider).goalsDao.watchAll();
+});
+
+/// Elige la meta a destacar en el card "Metas de ahorro": la de fecha limite
+/// (`deadline`) mas proxima entre las que la tienen; si ninguna tiene fecha
+/// limite, la primera del listado (regla determinista simple, ya que
+/// `watchAll()` no garantiza un orden util quando todas las fechas son
+/// nulas). Devuelve `null` solo si no hay ninguna meta.
+SavingsGoal? nearestGoal(List<SavingsGoal> goals) {
+  if (goals.isEmpty) return null;
+  final withDeadline = goals.where((g) => g.deadline != null).toList()
+    ..sort((a, b) => a.deadline!.compareTo(b.deadline!));
+  return withDeadline.isNotEmpty ? withDeadline.first : goals.first;
+}
+
 /// Totales del mes calendario actual (hora de Lima).
 typedef MonthTotals = ({int expenseCents, int incomeCents});
 
@@ -106,6 +122,7 @@ class DashboardScreen extends ConsumerWidget {
     final totalsAsync = ref.watch(monthTotalsProvider);
     final balanceAsync = ref.watch(totalBalanceProvider);
     final totals = totalsAsync.valueOrNull;
+    final goalsAsync = ref.watch(_goalsProvider);
 
     return Scaffold(
       body: SafeArea(
@@ -158,6 +175,8 @@ class DashboardScreen extends ConsumerWidget {
                 ),
               ],
             ),
+            const SizedBox(height: 16),
+            _GoalsCard(goal: nearestGoal(goalsAsync.valueOrNull ?? const [])),
             const SizedBox(height: 24),
             Text('Transacciones recientes', style: Theme.of(context).textTheme.titleMedium),
             const SizedBox(height: 8),
@@ -226,6 +245,97 @@ class _BalanceCard extends StatelessWidget {
           ),
         ],
       ),
+    );
+  }
+}
+
+/// Card "Metas de ahorro" del dashboard: muestra la meta mas proxima a
+/// vencer (ver `nearestGoal`) con su barra de progreso, o una invitacion a
+/// crear la primera meta si todavia no hay ninguna. Se mantiene visible
+/// siempre (no se oculta con 0 metas) para que el enlace a `/goals` este
+/// disponible desde el dashboard en cualquier estado, igual que el resto de
+/// cards de esta pantalla.
+class _GoalsCard extends StatelessWidget {
+  const _GoalsCard({required this.goal});
+  final SavingsGoal? goal;
+
+  @override
+  Widget build(BuildContext context) {
+    return GestureDetector(
+      onTap: () => context.go('/goals'),
+      child: Card(
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        child: Padding(
+          padding: const EdgeInsets.all(16),
+          child: goal == null ? _buildEmpty(context) : _buildGoal(context, goal!),
+        ),
+      ),
+    );
+  }
+
+  Widget _buildEmpty(BuildContext context) {
+    return Row(
+      children: [
+        const CircleAvatar(
+          backgroundColor: FinoraColors.savings,
+          radius: 16,
+          child: Icon(Icons.savings_rounded, color: Colors.white, size: 18),
+        ),
+        const SizedBox(width: 12),
+        Expanded(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('Metas de ahorro', style: Theme.of(context).textTheme.titleMedium),
+              const Text('Crea tu primera meta', style: TextStyle(color: FinoraColors.textSecondary)),
+            ],
+          ),
+        ),
+        const Icon(Icons.chevron_right, color: FinoraColors.textSecondary),
+      ],
+    );
+  }
+
+  Widget _buildGoal(BuildContext context, SavingsGoal g) {
+    final ratio = g.targetCents > 0 ? (g.savedCents / g.targetCents).clamp(0.0, 1.0) : 0.0;
+    final percent = (ratio * 100).round();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        Row(
+          children: [
+            const CircleAvatar(
+              backgroundColor: FinoraColors.savings,
+              radius: 16,
+              child: Icon(Icons.savings_rounded, color: Colors.white, size: 18),
+            ),
+            const SizedBox(width: 12),
+            Expanded(
+              child: Text('Metas de ahorro', style: Theme.of(context).textTheme.titleMedium),
+            ),
+            Text('$percent%',
+                style: const TextStyle(fontWeight: FontWeight.w700, color: FinoraColors.income)),
+            const Icon(Icons.chevron_right, color: FinoraColors.textSecondary),
+          ],
+        ),
+        const SizedBox(height: 8),
+        Text(g.name, style: const TextStyle(color: FinoraColors.textSecondary)),
+        const SizedBox(height: 8),
+        ClipRRect(
+          borderRadius: BorderRadius.circular(4),
+          child: LinearProgressIndicator(
+            value: ratio,
+            minHeight: 8,
+            backgroundColor: FinoraColors.border,
+            valueColor: const AlwaysStoppedAnimation(FinoraColors.income),
+          ),
+        ),
+        const SizedBox(height: 8),
+        Text(
+          '${formatMoney(g.savedCents)} de ${formatMoney(g.targetCents)}',
+          style: const TextStyle(color: FinoraColors.textSecondary),
+        ),
+      ],
     );
   }
 }

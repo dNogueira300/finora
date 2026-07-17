@@ -3,15 +3,19 @@ import 'package:drift/native.dart';
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'package:finora/data/local/database.dart';
 import 'package:finora/data/sync/sync_providers.dart';
 import 'package:finora/features/dashboard/dashboard_screen.dart';
 
-// No se pumpea AppShell ni el router: DashboardScreen usa `context.push`
-// unicamente dentro de un onPressed (boton de alertas) que estas pruebas
-// nunca tocan, asi que no hace falta un GoRouter en el arbol.
+// La mayoria de estos tests no pumpean AppShell ni el router:
+// `DashboardScreen` usa `context.push`/`context.go` unicamente dentro de
+// `onPressed`/`onTap` que la mayoria de estos tests nunca tocan, asi que no
+// hace falta un GoRouter en el arbol. La excepcion es el test de navegacion
+// del card "Metas de ahorro" (mas abajo), que si envuelve la pantalla en un
+// `GoRouter` real, mismo patron que `add_transaction_screen_test.dart`.
 void main() {
   // Cada test abre su propia base de datos en memoria (ver `setUp`), lo cual
   // hace que drift emita una advertencia benigna de "database class created
@@ -116,6 +120,67 @@ void main() {
     expect(find.text('S/ 45.50'), findsOneWidget); // "Gastos del mes" actualizado
 
     // Mismo drenado de timers pendientes que en el test anterior.
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets('sin metas, el card "Metas de ahorro" invita a crear la primera', (tester) async {
+    await tester.pumpWidget(buildApp());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Metas de ahorro'), findsOneWidget);
+    expect(find.text('Crea tu primera meta'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets(
+      'el card "Metas de ahorro" muestra la meta con fecha limite mas proxima y navega a /goals al tocarlo',
+      (tester) async {
+    final now = DateTime.now().toUtc();
+    // "Auto" vence antes que "Casa": debe ser la meta destacada aunque se
+    // haya insertado despues (ver `nearestGoal` en `dashboard_screen.dart`).
+    await db.goalsDao.upsert(SavingsGoalsCompanion.insert(
+      id: 'g2',
+      name: 'Casa',
+      targetCents: 1000000,
+      savedCents: const Value(100000),
+      deadline: Value(now.add(const Duration(days: 365))),
+      updatedAt: now,
+    ));
+    await db.goalsDao.upsert(SavingsGoalsCompanion.insert(
+      id: 'g1',
+      name: 'Auto',
+      targetCents: 500000,
+      savedCents: const Value(125000),
+      deadline: Value(now.add(const Duration(days: 30))),
+      updatedAt: now,
+    ));
+
+    final router = GoRouter(
+      initialLocation: '/',
+      routes: [
+        GoRoute(path: '/', builder: (_, _) => const DashboardScreen()),
+        GoRoute(path: '/goals', builder: (_, _) => const Scaffold(body: Text('pantalla metas'))),
+      ],
+    );
+
+    await tester.pumpWidget(ProviderScope(
+      overrides: [databaseProvider.overrideWithValue(db)],
+      child: MaterialApp.router(routerConfig: router),
+    ));
+    await tester.pumpAndSettle();
+
+    expect(find.text('Auto'), findsOneWidget); // meta destacada: vence primero
+    expect(find.text('Casa'), findsNothing);
+    expect(find.text('25%'), findsOneWidget); // 125000/500000
+
+    await tester.tap(find.text('Metas de ahorro'));
+    await tester.pumpAndSettle();
+
+    expect(find.text('pantalla metas'), findsOneWidget);
+
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 1));
   });
