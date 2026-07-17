@@ -6,6 +6,7 @@ import '../features/auth/auth_providers.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/lock_screen.dart';
 import '../features/dashboard/dashboard_screen.dart';
+import '../features/transactions/add_transaction_screen.dart';
 import 'app_shell.dart';
 
 /// Decision pura de redirect, extraida para poder testearla sin depender de
@@ -77,7 +78,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/settings', builder: (_, _) => const _Placeholder('Configuración')),
         ],
       ),
-      GoRoute(path: '/add', builder: (_, _) => const _Placeholder('Nuevo gasto')),
+      GoRoute(path: '/add', builder: (_, _) => const AddTransactionScreen()),
       GoRoute(path: '/calendar', builder: (_, _) => const _Placeholder('Calendario')),
       GoRoute(path: '/alerts', builder: (_, _) => const _Placeholder('Alertas')),
     ],
