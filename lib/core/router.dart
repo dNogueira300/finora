@@ -1,10 +1,8 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../features/auth/auth_providers.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/lock_screen.dart';
 
@@ -35,16 +33,17 @@ String? redirectDecision({
 class RouterRefresh extends ChangeNotifier {
   RouterRefresh(Ref ref) {
     ref.listen(appLockedProvider, (_, _) => notifyListeners());
-    _authSub =
-        Supabase.instance.client.auth.onAuthStateChange.listen((_) => notifyListeners());
-  }
-
-  late final StreamSubscription<AuthState> _authSub;
-
-  @override
-  void dispose() {
-    _authSub.cancel();
-    super.dispose();
+    ref.listen(authStateProvider, (_, next) {
+      // Al cerrar sesion, el usuario no debe encontrar la app bloqueada en
+      // el proximo login: se resetea appLockedProvider aqui, antes de
+      // notificar, para que el redirect subsiguiente ya vea `locked: false`.
+      // En un login recien hecho (evento signedIn con sesion no nula) no se
+      // fuerza el bloqueo: se deja el estado tal cual esta.
+      if (next.valueOrNull?.session == null) {
+        ref.read(appLockedProvider.notifier).state = false;
+      }
+      notifyListeners();
+    });
   }
 }
 
@@ -55,7 +54,7 @@ final routerProvider = Provider<GoRouter>((ref) {
     refreshListenable: refresh,
     initialLocation: '/',
     redirect: (context, state) {
-      final loggedIn = Supabase.instance.client.auth.currentSession != null;
+      final loggedIn = ref.read(authRepositoryProvider).currentUserId != null;
       final locked = ref.read(appLockedProvider);
       return redirectDecision(
         loggedIn: loggedIn,

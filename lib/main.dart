@@ -1,5 +1,3 @@
-import 'dart:async';
-
 import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
@@ -19,43 +17,36 @@ Future<void> main() async {
       url: Env.supabaseUrl, publishableKey: Env.supabaseAnonKey);
   Intl.defaultLocale = 'es_PE';
   await initializeDateFormatting('es_PE');
-  runApp(const ProviderScope(child: FinoraApp()));
+
+  // Se resuelve el estado de bloqueo ANTES de correr la app: appLockedProvider
+  // arranca en `true` por defecto, y si esperaramos a resolverlo dentro del
+  // arbol de widgets el router ya habria evaluado su primer redirect con ese
+  // `true`, mostrando un flash de /lock aunque el usuario no tenga biometria
+  // activa (o no tenga sesion). Se usa un ProviderContainer manual para poder
+  // fijar el estado real antes de runApp, y se reutiliza ese mismo container
+  // (con UncontrolledProviderScope) para que databaseProvider siga siendo una
+  // unica instancia de AppDatabase compartida con el resto de la app.
+  final container = ProviderContainer();
+  final session = Supabase.instance.client.auth.currentSession;
+  var locked = false;
+  if (session != null) {
+    final settings =
+        await container.read(databaseProvider).settingsDao.get(session.user.id);
+    locked = settings?.biometricEnabled ?? false;
+  }
+  container.read(appLockedProvider.notifier).state = locked;
+
+  runApp(UncontrolledProviderScope(
+    container: container,
+    child: const FinoraApp(),
+  ));
 }
 
-class FinoraApp extends ConsumerStatefulWidget {
+class FinoraApp extends ConsumerWidget {
   const FinoraApp({super.key});
 
   @override
-  ConsumerState<FinoraApp> createState() => _FinoraAppState();
-}
-
-class _FinoraAppState extends ConsumerState<FinoraApp> {
-  @override
-  void initState() {
-    super.initState();
-    // No se espera este future: la primera pantalla puede mostrar el lock
-    // brevemente mientras se resuelve, pero el estado por defecto de
-    // appLockedProvider (true) solo debe persistir si de verdad corresponde.
-    unawaited(_initLockState());
-  }
-
-  Future<void> _initLockState() async {
-    final session = Supabase.instance.client.auth.currentSession;
-    if (session == null) {
-      // Sin sesion no hay nada que desbloquear: el redirect del router
-      // manda a /login de todas formas.
-      ref.read(appLockedProvider.notifier).state = false;
-      return;
-    }
-    final db = ref.read(databaseProvider);
-    final settings = await db.settingsDao.get(session.user.id);
-    if (!mounted) return;
-    ref.read(appLockedProvider.notifier).state =
-        settings?.biometricEnabled ?? false;
-  }
-
-  @override
-  Widget build(BuildContext context) {
+  Widget build(BuildContext context, WidgetRef ref) {
     return MaterialApp.router(
       title: 'Finora',
       theme: finoraTheme(),
