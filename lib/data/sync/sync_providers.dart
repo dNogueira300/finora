@@ -1,6 +1,7 @@
 import 'dart:async';
 
 import 'package:connectivity_plus/connectivity_plus.dart';
+import 'package:drift/drift.dart' show TableUpdateQuery;
 import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
@@ -29,11 +30,17 @@ final syncStatusProvider = StateProvider<SyncStatus>((_) => SyncStatus.idle);
 /// tras cada escritura local (con debounce de 5 s).
 ///
 /// Cuidado: el listener de `tableUpdates` tambien se dispara cuando el
-/// propio sync escribe filas al hacer `pull()`. El flag `_running` mas el
-/// debounce de 5 s evitan bucles: mientras `trigger()` esta en curso, las
-/// nuevas invocaciones se ignoran, y el push de una segunda pasada no
-/// encuentra filas sucias (ya se marcaron limpias) por lo que termina en
-/// no-op.
+/// propio sync escribe filas al hacer `pull()`. Para evitar un bucle
+/// perpetuo de no-ops se combinan dos defensas:
+///  1. El listener esta acotado a las 5 tablas sincronizables (no a todas
+///     las tablas de la DB), asi que escrituras a `SyncState` (o a futuras
+///     tablas solo-locales como `LocalAlerts`) nunca lo rearman.
+///  2. `SyncEngine.pull()` solo persiste la marca de agua (`SyncState`)
+///     cuando de verdad avanzo; si no llegaron filas nuevas no escribe nada.
+/// Ademas, el flag `_running` mas el debounce de 5 s evitan bucles: mientras
+/// `trigger()` esta en curso, las nuevas invocaciones se ignoran, y el push
+/// de una segunda pasada no encuentra filas sucias (ya se marcaron limpias)
+/// por lo que termina en no-op.
 class SyncCoordinator with WidgetsBindingObserver {
   SyncCoordinator(this._ref) {
     WidgetsBinding.instance.addObserver(this);
@@ -42,11 +49,27 @@ class SyncCoordinator with WidgetsBindingObserver {
     });
     _authSub = Supabase.instance.client.auth.onAuthStateChange.listen((s) async {
       if (s.event == AuthChangeEvent.signedIn) {
-        await seedDefaultCategories(_ref.read(databaseProvider));
+        try {
+          await seedDefaultCategories(_ref.read(databaseProvider));
+          // ignore: avoid_catches_without_on_clauses
+        } catch (_) {
+          // El sembrado de categorias por defecto es best-effort: si falla no
+          // debe bloquear el sync (el usuario ya inicio sesion y puede tener
+          // datos remotos pendientes de traer).
+        }
         trigger();
       }
     });
-    _dbSub = _ref.read(databaseProvider).tableUpdates().listen((_) {
+    final db = _ref.read(databaseProvider);
+    _dbSub = db
+        .tableUpdates(TableUpdateQuery.onAllTables([
+          db.accounts,
+          db.categories,
+          db.transactions,
+          db.savingsGoals,
+          db.userSettings,
+        ]))
+        .listen((_) {
       _debounce?.cancel();
       _debounce = Timer(const Duration(seconds: 5), trigger);
     });
@@ -71,9 +94,9 @@ class SyncCoordinator with WidgetsBindingObserver {
       _ref.read(syncStatusProvider.notifier).state = SyncStatus.offline;
       return;
     }
-    _running = true;
-    _ref.read(syncStatusProvider.notifier).state = SyncStatus.syncing;
     try {
+      _running = true;
+      _ref.read(syncStatusProvider.notifier).state = SyncStatus.syncing;
       await _ref.read(syncEngineProvider).synchronize();
       _ref.read(syncStatusProvider.notifier).state = SyncStatus.idle;
     } catch (_) {

@@ -34,7 +34,13 @@ class SyncEngine {
         final u = DateTime.parse(row['updated_at'] as String).toUtc();
         if (maxUpdated == null || u.isAfter(maxUpdated)) maxUpdated = u;
       }
-      if (maxUpdated != null) {
+      // Solo persistimos la marca de agua si realmente avanzo: si no llegaron
+      // filas (o ninguna es mas nueva que `since`), escribir igualmente
+      // dispararia `db.tableUpdates()` sin cambios reales y reharia el debounce
+      // de sync indefinidamente (bucle no-op).
+      final advanced =
+          maxUpdated != null && (since == null || maxUpdated.isAfter(since));
+      if (advanced) {
         await db.into(db.syncState).insertOnConflictUpdate(SyncStateCompanion(
           entityTable: Value(spec.remoteName),
           lastPulledAt: Value(maxUpdated),

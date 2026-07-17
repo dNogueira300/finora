@@ -1,3 +1,4 @@
+import 'package:drift/drift.dart' show TableUpdateQuery;
 import 'package:drift/native.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:finora/data/local/database.dart';
@@ -55,5 +56,36 @@ void main() {
     await engine.pull();
     final row = await db.select(db.transactions).get();
     expect(row.single.amountCents, 999); // gano lo local
+  });
+
+  test('pull no-op no reescribe la marca de agua', () async {
+    final t = DateTime.utc(2026, 7, 10, 12);
+    remote.data['transactions'] = [_remoteTxn('t1', t)];
+    await engine.pull();
+    final before = await (db.select(db.syncState)).get();
+
+    // Segunda pasada: el remoto ya no devuelve filas nuevas (simula que no
+    // hay nada que sincronizar). No deberia reescribirse syncState.
+    remote.data['transactions'] = [];
+
+    // Verificacion fuerte: no debe haber ningun evento de tableUpdates sobre
+    // syncState durante la segunda pasada (eso es justo lo que rearmaria el
+    // debounce del SyncCoordinator y causaria el bucle no-op).
+    final events = <void>[];
+    final sub = db
+        .tableUpdates(TableUpdateQuery.onTable(db.syncState))
+        .listen(events.add);
+    await engine.pull();
+    // Le damos tiempo al stream de drift (asincrono) a entregar cualquier
+    // evento pendiente antes de afirmar que no hubo ninguno.
+    await Future<void>.delayed(const Duration(milliseconds: 50));
+    await sub.cancel();
+    expect(events, isEmpty);
+
+    final after = await (db.select(db.syncState)).get();
+    expect(
+      after.map((s) => (s.entityTable, s.lastPulledAt)).toList(),
+      before.map((s) => (s.entityTable, s.lastPulledAt)).toList(),
+    );
   });
 }
