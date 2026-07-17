@@ -48,12 +48,11 @@ void main() {
     );
   }
 
-  // La misma logica que `_statsMonthProvider` (mes actual segun el reloj
-  // local del dispositivo, sin ajuste de zona horaria) para poder insertar
-  // datos de prueba que caigan dentro del mes que la pantalla muestra por
-  // defecto.
+  // La misma logica que `_statsMonthProvider` (mes actual en hora de Lima)
+  // para poder insertar datos de prueba que caigan dentro del mes que la
+  // pantalla muestra por defecto.
   DateTime currentStatsMonth() {
-    final now = DateTime.now();
+    final now = toLima(DateTime.now().toUtc());
     return DateTime(now.year, now.month, 1);
   }
 

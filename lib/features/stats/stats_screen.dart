@@ -3,6 +3,7 @@ import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:intl/intl.dart';
 
+import '../../core/dates.dart';
 import '../../core/finora_colors.dart';
 import '../../core/money.dart';
 import '../../data/local/database.dart';
@@ -15,7 +16,7 @@ const _fallbackCategoryColor = Color(0xFF6B7280);
 /// Mes calendario mostrado por la pantalla (chevrons para navegar). Arranca
 /// en el mes actual.
 final _statsMonthProvider = StateProvider<DateTime>((_) {
-  final now = DateTime.now();
+  final now = toLima(DateTime.now().toUtc());
   return DateTime(now.year, now.month, 1);
 });
 
