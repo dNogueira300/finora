@@ -20,6 +20,7 @@ class _LockScreenState extends ConsumerState<LockScreen> {
 
   Future<void> _tryUnlock() async {
     final ok = await ref.read(biometricServiceProvider).authenticate();
+    if (!mounted) return;
     if (ok) ref.read(appLockedProvider.notifier).state = false;
   }
 
