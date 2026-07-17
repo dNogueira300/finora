@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import '../features/auth/auth_providers.dart';
 import '../features/auth/login_screen.dart';
 import '../features/auth/lock_screen.dart';
+import '../features/dashboard/dashboard_screen.dart';
+import 'app_shell.dart';
 
 /// Decision pura de redirect, extraida para poder testearla sin depender de
 /// go_router ni de Supabase. `location` es la ruta actualmente resolviendose
@@ -65,14 +67,19 @@ final routerProvider = Provider<GoRouter>((ref) {
     routes: [
       GoRoute(path: '/login', builder: (_, _) => const LoginScreen()),
       GoRoute(path: '/lock', builder: (_, _) => const LockScreen()),
-      GoRoute(path: '/', builder: (_, _) => const _Placeholder('Dashboard')),
+      ShellRoute(
+        builder: (context, state, child) => AppShell(child: child),
+        routes: [
+          GoRoute(path: '/', builder: (_, _) => const DashboardScreen()),
+          GoRoute(path: '/cards', builder: (_, _) => const _Placeholder('Mis tarjetas')),
+          GoRoute(path: '/stats', builder: (_, _) => const _Placeholder('Estadísticas')),
+          GoRoute(path: '/goals', builder: (_, _) => const _Placeholder('Metas')),
+          GoRoute(path: '/settings', builder: (_, _) => const _Placeholder('Configuración')),
+        ],
+      ),
       GoRoute(path: '/add', builder: (_, _) => const _Placeholder('Nuevo gasto')),
-      GoRoute(path: '/cards', builder: (_, _) => const _Placeholder('Mis tarjetas')),
       GoRoute(path: '/calendar', builder: (_, _) => const _Placeholder('Calendario')),
-      GoRoute(path: '/stats', builder: (_, _) => const _Placeholder('Estadísticas')),
-      GoRoute(path: '/goals', builder: (_, _) => const _Placeholder('Metas')),
       GoRoute(path: '/alerts', builder: (_, _) => const _Placeholder('Alertas')),
-      GoRoute(path: '/settings', builder: (_, _) => const _Placeholder('Configuración')),
     ],
   );
 });
