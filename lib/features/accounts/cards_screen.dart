@@ -24,6 +24,15 @@ final _recentTxnsProvider = StreamProvider.autoDispose<List<Txn>>((ref) {
   return ref.watch(databaseProvider).transactionsDao.watchRecent(50);
 });
 
+/// Ultima pagina del carrusel de tarjetas, guardada FUERA del `State` de
+/// `CardsScreen`. Al cambiar de pestaña con `context.go`, el `ShellRoute`
+/// reemplaza su hijo y `_CardsScreenState` se destruye por completo (no es
+/// un simple rebuild): un `PageController` creado en el `State` vuelve a
+/// nacer en la pagina 0 al reconstruirse. Este provider NO es `autoDispose`
+/// para que sobreviva ese desmontaje mientras el usuario esta en otra
+/// pestaña y se recupere al volver a `/cards`.
+final _carouselPageProvider = StateProvider<int>((_) => 0);
+
 /// Pantalla "Mis Tarjetas" (referencia Stitch "Mis Tarjetas Premium"):
 /// carrusel de tarjetas visuales para cuentas `credit`/`debit` (con barra de
 /// uso de linea para `credit`) y lista de cuentas `cash`/`wallet` con su
@@ -37,17 +46,35 @@ class CardsScreen extends ConsumerStatefulWidget {
 }
 
 class _CardsScreenState extends ConsumerState<CardsScreen> {
-  // Creado una unica vez (no en `build`): `CardsScreen` reconstruye su arbol
-  // cada vez que `_activeAccountsProvider`/`_recentTxnsProvider` emiten (p.
-  // ej. al registrar cualquier transaccion mientras la pantalla esta
-  // montada). Un `PageController` nuevo en cada `build` reiniciaria el
-  // carrusel a la primera pagina en cada rebuild, deshaciendo el swipe del
-  // usuario; se crea una sola vez aqui y se reutiliza entre rebuilds.
-  late final _pageController = PageController(viewportFraction: .9);
+  // Creado una unica vez por instancia de `_CardsScreenState` (no en
+  // `build`): `CardsScreen` reconstruye su arbol cada vez que
+  // `_activeAccountsProvider`/`_recentTxnsProvider` emiten (p. ej. al
+  // registrar cualquier transaccion mientras la pantalla esta montada). Un
+  // `PageController` nuevo en cada `build` reiniciaria el carrusel a la
+  // primera pagina en cada rebuild, deshaciendo el swipe del usuario.
+  //
+  // Es nullable (en vez de `late final`) porque su `initialPage` depende de
+  // `cardAccounts.length`, que solo se conoce dentro de `build` una vez que
+  // `_activeAccountsProvider` tiene datos; se crea perezosamente la primera
+  // vez que se conoce ese conteo y se reutiliza en los rebuilds siguientes.
+  PageController? _pageController;
+
+  /// Se lee (no se observa) `_carouselPageProvider` al construir el
+  /// controlador: cambiar de pestaña destruye esta instancia de `State`
+  /// (y con ella `_pageController`), asi que la pagina debe sobrevivir en
+  /// un provider no-autoDispose para que el carrusel no vuelva a la
+  /// primera tarjeta al regresar a `/cards`. Se acota contra `cardCount`
+  /// por si se eliminaron tarjetas mientras el usuario estaba en otra
+  /// pestaña: un `initialPage` fuera de rango no debe romper el carrusel.
+  PageController _controllerFor(int cardCount) {
+    final stored = ref.read(_carouselPageProvider);
+    final initialPage = stored.clamp(0, cardCount - 1);
+    return _pageController ??= PageController(viewportFraction: .9, initialPage: initialPage);
+  }
 
   @override
   void dispose() {
-    _pageController.dispose();
+    _pageController?.dispose();
     super.dispose();
   }
 
@@ -94,7 +121,9 @@ class _CardsScreenState extends ConsumerState<CardsScreen> {
                   SizedBox(
                     height: 190,
                     child: PageView(
-                      controller: _pageController,
+                      controller: _controllerFor(cardAccounts.length),
+                      onPageChanged: (i) =>
+                          ref.read(_carouselPageProvider.notifier).state = i,
                       children: [
                         for (final a in cardAccounts)
                           Padding(

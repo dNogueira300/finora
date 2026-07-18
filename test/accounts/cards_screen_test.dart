@@ -4,8 +4,10 @@ import 'package:flutter/material.dart';
 import 'package:flutter_localizations/flutter_localizations.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
+import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
+import 'package:finora/core/app_shell.dart';
 import 'package:finora/core/finora_colors.dart';
 import 'package:finora/data/local/database.dart';
 import 'package:finora/data/sync/sync_providers.dart';
@@ -304,6 +306,81 @@ void main() {
     // Mismo `PageController` (no se recreo) y sigue en la segunda pagina.
     final controllerAfter = tester.widget<PageView>(find.byType(PageView)).controller!;
     expect(identical(controller, controllerAfter), isTrue);
+    expect(controllerAfter.page, closeTo(1, 0.01));
+
+    await drainTimers(tester);
+  });
+
+  testWidgets(
+      'el carrusel conserva la pagina tras cambiar de pestaña y volver a /cards',
+      (tester) async {
+    await growTestSurface(tester);
+    await db.accountsDao.upsert(AccountsCompanion.insert(
+      id: 'cc1',
+      name: 'Visa Oro',
+      type: 'credit',
+      creditLimitCents: const Value(100000),
+      last4: const Value('1111'),
+      updatedAt: DateTime.now().toUtc(),
+    ));
+    await db.accountsDao.upsert(AccountsCompanion.insert(
+      id: 'cc2',
+      name: 'Master Black',
+      type: 'credit',
+      creditLimitCents: const Value(200000),
+      last4: const Value('2222'),
+      updatedAt: DateTime.now().toUtc(),
+    ));
+
+    // GoRouter real con un shell de 2 pestañas ('/' y '/cards'), igual que
+    // en la app: cambiar de pestaña con `context.go` reemplaza el hijo del
+    // `ShellRoute` y desmonta `_CardsScreenState` por completo (a diferencia
+    // de un rebuild por stream, que es lo que cubre el test anterior).
+    final router = GoRouter(
+      initialLocation: '/cards',
+      routes: [
+        ShellRoute(
+          builder: (context, state, child) => AppShell(child: child),
+          routes: [
+            GoRoute(
+              path: '/',
+              builder: (_, _) => const Scaffold(body: Center(child: Text('Inicio dummy'))),
+            ),
+            GoRoute(path: '/cards', builder: (_, _) => const CardsScreen()),
+          ],
+        ),
+      ],
+    );
+
+    await tester.pumpWidget(
+      ProviderScope(
+        overrides: [databaseProvider.overrideWithValue(db)],
+        child: MaterialApp.router(
+          routerConfig: router,
+          localizationsDelegates: GlobalMaterialLocalizations.delegates,
+          supportedLocales: const [Locale('es')],
+        ),
+      ),
+    );
+    await tester.pumpAndSettle();
+
+    // Desliza el carrusel a la segunda tarjeta.
+    await tester.drag(find.byType(PageView), const Offset(-800, 0));
+    await tester.pumpAndSettle();
+    final controller = tester.widget<PageView>(find.byType(PageView)).controller!;
+    expect(controller.page, closeTo(1, 0.01));
+
+    // Cambia de pestaña (desmonta `_CardsScreenState`) y vuelve a /cards.
+    router.go('/');
+    await tester.pumpAndSettle();
+    expect(find.text('Inicio dummy'), findsOneWidget);
+
+    router.go('/cards');
+    await tester.pumpAndSettle();
+
+    // El carrusel debe seguir mostrando la segunda tarjeta, no reiniciar a
+    // la primera pagina.
+    final controllerAfter = tester.widget<PageView>(find.byType(PageView)).controller!;
     expect(controllerAfter.page, closeTo(1, 0.01));
 
     await drainTimers(tester);
