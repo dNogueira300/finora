@@ -8,6 +8,7 @@ import '../../core/finora_colors.dart';
 import '../../core/money.dart';
 import '../../data/local/database.dart';
 import '../../data/sync/sync_providers.dart';
+import '../../services/notifications_service.dart';
 import '../auth/auth_providers.dart';
 import '../auth/lock_screen.dart';
 
@@ -165,6 +166,17 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     if (next == _alertDaysBeforeDue) return;
     setState(() => _alertDaysBeforeDue = next);
     _persist();
+    // Reprograma recordatorios de pago (Task 22) con el nuevo valor de
+    // `alertDaysBeforeDue`, mismo patron que `EditAccountSheet._save()`:
+    // antes de este fix, un cambio aqui solo se reflejaba en las
+    // notificaciones tras el siguiente sync ONLINE exitoso
+    // (`SyncCoordinator.trigger()`), lo que es asimetrico con
+    // `edit_account_sheet.dart` (reprograma de inmediato al guardar una
+    // cuenta) y deja al usuario sin recordatorio actualizado si esta
+    // offline o el sync tarda. Best-effort (su propio try/catch): un fallo
+    // no debe afectar el guardado del valor, que ya ocurrio arriba.
+    rescheduleCardRemindersFromDb(
+        ref.read(databaseProvider), ref.read(notificationsServiceProvider));
   }
 
   Future<void> _confirmSignOut() async {

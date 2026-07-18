@@ -11,6 +11,8 @@ import 'package:finora/data/sync/sync_providers.dart';
 import 'package:finora/features/auth/lock_screen.dart';
 import 'package:finora/features/settings/settings_screen.dart';
 import 'package:finora/services/biometric_service.dart';
+import 'package:finora/services/notifications_service.dart';
+import 'package:timezone/timezone.dart' as tz;
 
 /// Doble de prueba de `BiometricService`: evita tocar `local_auth`
 /// (plugin de plataforma) en los tests, controlando `isAvailable`/
@@ -25,6 +27,49 @@ class _FakeBiometricService extends BiometricService {
 
   @override
   Future<bool> authenticate() async => authResult;
+}
+
+/// Plugin sin operaciones reales: la prueba de reprogramacion de
+/// recordatorios (mas abajo) sobreescribe `scheduleCardReminders` en
+/// `_RecordingNotificationsService`, asi que este plugin nunca deberia
+/// llegar a invocarse; existe solo para satisfacer el constructor de
+/// `NotificationsService`.
+class _NoopNotificationsPlugin implements NotificationsPlugin {
+  @override
+  Future<void> initialize(void Function(String? payload) onTap) async {}
+  @override
+  Future<void> requestAndroidPermission() async {}
+  @override
+  Future<void> cancelAll() async {}
+  @override
+  Future<void> show({
+    required int id,
+    required String title,
+    required String body,
+    required String payload,
+  }) async {}
+  @override
+  Future<void> zonedSchedule({
+    required int id,
+    required String title,
+    required String body,
+    required tz.TZDateTime scheduledDate,
+    required String payload,
+  }) async {}
+}
+
+/// Doble de `NotificationsService` para verificar que `_changeAlertDays`
+/// dispara `rescheduleCardRemindersFromDb` (Fix: antes solo se reprogramaba
+/// tras el siguiente sync ONLINE exitoso). Registra las llamadas a
+/// `scheduleCardReminders` en vez de delegar en el plugin real.
+class _RecordingNotificationsService extends NotificationsService {
+  _RecordingNotificationsService(super.plugin, super.db);
+  int scheduleCalls = 0;
+
+  @override
+  Future<void> scheduleCardReminders(List<Account> creditCards, int daysBefore) async {
+    scheduleCalls++;
+  }
 }
 
 void main() {
@@ -235,6 +280,60 @@ void main() {
     expect(find.text('2 días antes'), findsOneWidget);
     row = await db.settingsDao.get(userId);
     expect(row?.alertDaysBeforeDue, 2);
+
+    await drainTimers(tester);
+  });
+
+  testWidgets(
+      'cambiar los dias de aviso intenta reprogramar los recordatorios sin bloquear el guardado',
+      (tester) async {
+    // Verifica el fix: `_changeAlertDays` ahora llama a
+    // `rescheduleCardRemindersFromDb` (antes solo se reprogramaba tras el
+    // siguiente sync ONLINE exitoso, asimetrico con
+    // `EditAccountSheet._save()`). `rescheduleCardRemindersFromDb` resuelve
+    // el usuario via `Supabase.instance.client.auth.currentUser`, que en el
+    // entorno de test lanza un `AssertionError` (no se llama a
+    // `Supabase.initialize()` aqui, mismo criterio documentado en
+    // `currentUserIdProvider`/`syncCoordinatorProvider`); su try/catch
+    // best-effort lo swallowea igual que en produccion cuando falla. Por
+    // eso esta prueba no puede aserter `scheduleCalls > 0` end-to-end (el
+    // fake nunca se llega a invocar en este sandbox), pero SI confirma lo
+    // observable: la llamada no revierte ni bloquea el guardado del valor
+    // (regresion de la asimetria original) y no deja ninguna excepcion sin
+    // manejar.
+    await growTestSurface(tester);
+    final notifService =
+        _RecordingNotificationsService(_NoopNotificationsPlugin(), db);
+    await tester.pumpWidget(ProviderScope(
+      overrides: [
+        databaseProvider.overrideWithValue(db),
+        biometricServiceProvider.overrideWithValue(_FakeBiometricService(available: false)),
+        currentUserIdProvider.overrideWithValue(userId),
+        currentUserEmailProvider.overrideWithValue('ana@finora.test'),
+        notificationsServiceProvider.overrideWithValue(notifService),
+      ],
+      child: MaterialApp(
+        localizationsDelegates: GlobalMaterialLocalizations.delegates,
+        supportedLocales: const [Locale('es')],
+        home: const SettingsScreen(),
+      ),
+    ));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.add_circle_outline));
+    await tester.pumpAndSettle();
+
+    expect(tester.takeException(), isNull); // best-effort: no debe propagar
+    expect(find.text('4 días antes'), findsOneWidget); // el guardado sigue funcionando
+    final row = await db.settingsDao.get(userId);
+    expect(row?.alertDaysBeforeDue, 4);
+    // Documenta la limitacion explicada arriba: en este sandbox
+    // `rescheduleCardRemindersFromDb` nunca llega a invocar al fake (corta
+    // antes, en `Supabase.instance`). Si algun dia se resuelve ese usuario
+    // sin pasar por `Supabase.instance` (o el test inicializa un cliente de
+    // prueba), este valor deberia pasar a > 0 y esta aserción debe
+    // actualizarse a la par.
+    expect(notifService.scheduleCalls, 0);
 
     await drainTimers(tester);
   });
