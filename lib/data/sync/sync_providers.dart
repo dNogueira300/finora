@@ -50,13 +50,34 @@ class SyncCoordinator with WidgetsBindingObserver {
     });
     _authSub = Supabase.instance.client.auth.onAuthStateChange.listen((s) async {
       if (s.event == AuthChangeEvent.signedIn) {
+        // Orden importante (fix de duplicados multi-dispositivo, ver
+        // `seed.dart`): se intenta un `pull()` ANTES de sembrar, para que un
+        // segundo dispositivo (DB local vacia) reciba primero las categorias
+        // que ya sembro el primero y el guard `countAll() > 0` de
+        // `seedDefaultCategories` evite sembrar de nuevo. El primer login
+        // SIEMPRE tiene red (Supabase Auth la exige), asi que este `pull()`
+        // es confiable en la practica; si de todas formas falla (p. ej. la
+        // red se cae justo despues de autenticar), se omite el sembrado
+        // aqui y se deja el re-chequeo de `trigger()` (mismo guard, ver mas
+        // abajo) para la siguiente sincronizacion exitosa.
+        var pulled = false;
         try {
-          await seedDefaultCategories(_ref.read(databaseProvider));
+          await _ref.read(syncEngineProvider).pull();
+          pulled = true;
           // ignore: avoid_catches_without_on_clauses
         } catch (_) {
-          // El sembrado de categorias por defecto es best-effort: si falla no
-          // debe bloquear el sync (el usuario ya inicio sesion y puede tener
-          // datos remotos pendientes de traer).
+          // Sin red: no sembramos todavia (evita la ventana de duplicados
+          // del bug original). El proximo sync exitoso lo cubre.
+        }
+        if (pulled) {
+          try {
+            await seedDefaultCategories(_ref.read(databaseProvider));
+            // ignore: avoid_catches_without_on_clauses
+          } catch (_) {
+            // El sembrado de categorias por defecto es best-effort: si falla
+            // no debe bloquear el sync (el usuario ya inicio sesion y puede
+            // tener datos remotos pendientes de traer).
+          }
         }
         trigger();
       }
@@ -100,6 +121,16 @@ class SyncCoordinator with WidgetsBindingObserver {
       _ref.read(syncStatusProvider.notifier).state = SyncStatus.syncing;
       await _ref.read(syncEngineProvider).synchronize();
       _ref.read(syncStatusProvider.notifier).state = SyncStatus.idle;
+      // Re-chequeo de siembra (fix de duplicados multi-dispositivo, ver
+      // `seed.dart`): punto de reintento simple para el caso raro en que el
+      // `pull()` del `signedIn` handler (arriba) fallo por falta de red. El
+      // guard `countAll() > 0` de `seedDefaultCategories` hace que esto sea
+      // no-op en el caso normal (categorias ya sembradas/traidas), asi que
+      // llamarlo tras cada sync exitoso es barato.
+      try {
+        await seedDefaultCategories(_ref.read(databaseProvider));
+        // ignore: avoid_catches_without_on_clauses
+      } catch (_) {}
       // Reprograma recordatorios de pago (Task 22): `pull()` pudo haber
       // traido cuentas de credito o settings nuevos desde otro dispositivo.
       // `rescheduleCardRemindersFromDb` ya es best-effort (su propio
