@@ -27,6 +27,7 @@ class GoalsScreen extends ConsumerWidget {
     return Scaffold(
       appBar: AppBar(title: const Text('Metas de ahorro')),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'goals-new-fab',
         onPressed: () => _openEditSheet(context),
         backgroundColor: FinoraColors.primary,
         icon: const Icon(Icons.add, color: Colors.white),
@@ -81,29 +82,9 @@ Future<void> _addContribution(WidgetRef ref, SavingsGoal g, int cents) =>
 /// el SnackBar "Monto inválido" solo en el segundo caso, mismo patron que
 /// `add_transaction_screen._save`.
 Future<void> _showContributeDialog(BuildContext context, WidgetRef ref, SavingsGoal goal) async {
-  final ctrl = TextEditingController();
   final input = await showDialog<String>(
     context: context,
-    builder: (ctx) => AlertDialog(
-      title: Text('Abonar a "${goal.name}"'),
-      content: TextField(
-        controller: ctrl,
-        autofocus: true,
-        keyboardType: const TextInputType.numberWithOptions(decimal: true),
-        decoration: const InputDecoration(
-          labelText: 'Monto',
-          prefixText: 'S/ ',
-          border: OutlineInputBorder(),
-        ),
-      ),
-      actions: [
-        TextButton(onPressed: () => Navigator.of(ctx).pop(), child: const Text('Cancelar')),
-        TextButton(
-          onPressed: () => Navigator.of(ctx).pop(ctrl.text),
-          child: const Text('Abonar'),
-        ),
-      ],
-    ),
+    builder: (ctx) => _ContributeDialog(goalName: goal.name),
   );
   if (input == null) return; // cancelado
 
@@ -116,6 +97,56 @@ Future<void> _showContributeDialog(BuildContext context, WidgetRef ref, SavingsG
     return;
   }
   await _addContribution(ref, goal, cents);
+}
+
+/// Contenido del dialogo "Abonar", extraido a un `StatefulWidget` propio
+/// para que el `TextEditingController` del monto se cree y se libere junto
+/// con el ciclo de vida del `State` (`dispose()`), en vez de con el
+/// `Future` de `showDialog` (que se completa apenas se llama a
+/// `Navigator.pop`, ANTES de que termine la animacion de salida del
+/// dialogo: liberar el controller en ese momento lo deja "usado tras
+/// dispose" mientras el `TextField` todavia esta en el arbol durante esa
+/// animacion).
+class _ContributeDialog extends StatefulWidget {
+  const _ContributeDialog({required this.goalName});
+  final String goalName;
+
+  @override
+  State<_ContributeDialog> createState() => _ContributeDialogState();
+}
+
+class _ContributeDialogState extends State<_ContributeDialog> {
+  final _ctrl = TextEditingController();
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: Text('Abonar a "${widget.goalName}"'),
+      content: TextField(
+        controller: _ctrl,
+        autofocus: true,
+        keyboardType: const TextInputType.numberWithOptions(decimal: true),
+        decoration: const InputDecoration(
+          labelText: 'Monto',
+          prefixText: 'S/ ',
+          border: OutlineInputBorder(),
+        ),
+      ),
+      actions: [
+        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancelar')),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(_ctrl.text),
+          child: const Text('Abonar'),
+        ),
+      ],
+    );
+  }
 }
 
 /// Menu de acciones de una meta (Editar/Eliminar). Publica (sin `_`) para
