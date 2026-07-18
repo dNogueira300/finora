@@ -8,6 +8,7 @@ import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
 import 'package:finora/core/app_shell.dart';
+import 'package:finora/core/finora_colors.dart';
 import 'package:finora/data/local/database.dart';
 import 'package:finora/data/sync/sync_providers.dart';
 import 'package:finora/features/accounts/cards_screen.dart';
@@ -143,5 +144,104 @@ void main() {
 
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 1));
+  });
+
+  // ---------------------------------------------------------------------------
+  // Task 2 (pulido): FAB circular + bottom bar de referencia + fix tab activo.
+  // Router de shell con dummies para las 4 pestañas, `/goals` (ruta del shell
+  // que NO es pestaña) y `/add`.
+  // ---------------------------------------------------------------------------
+  GoRouter buildShellRouter(String initialLocation) {
+    Scaffold dummy(String label) => Scaffold(body: Center(child: Text(label)));
+    return GoRouter(
+      initialLocation: initialLocation,
+      routes: [
+        ShellRoute(
+          builder: (context, state, child) => AppShell(child: child),
+          routes: [
+            GoRoute(path: '/', builder: (_, _) => dummy('Home dummy')),
+            GoRoute(path: '/cards', builder: (_, _) => dummy('Cards dummy')),
+            GoRoute(path: '/stats', builder: (_, _) => dummy('Stats dummy')),
+            GoRoute(path: '/settings', builder: (_, _) => dummy('Settings dummy')),
+            GoRoute(path: '/goals', builder: (_, _) => dummy('Goals dummy')),
+          ],
+        ),
+        GoRoute(path: '/add', builder: (_, _) => dummy('Add dummy')),
+      ],
+    );
+  }
+
+  // Los cuatro iconos de las pestañas del shell, en orden.
+  const navIcons = [
+    Icons.home_rounded,
+    Icons.credit_card,
+    Icons.bar_chart_rounded,
+    Icons.person_rounded,
+  ];
+
+  testWidgets('(a) el FAB del shell es un circulo perfecto (CircleBorder)',
+      (tester) async {
+    await growTestSurface(tester);
+    await tester.pumpWidget(buildApp(buildShellRouter('/')));
+    await tester.pumpAndSettle();
+
+    final fab = tester.widget<FloatingActionButton>(
+      find.byWidgetPredicate((w) => w is FloatingActionButton && !w.isExtended),
+    );
+    expect(fab.shape, isA<CircleBorder>());
+  });
+
+  testWidgets(
+      '(b) en /goals ningun tab del shell queda resaltado '
+      '(todos en textSecondary)', (tester) async {
+    await growTestSurface(tester);
+    await tester.pumpWidget(buildApp(buildShellRouter('/goals')));
+    await tester.pumpAndSettle();
+
+    for (final iconData in navIcons) {
+      final icon = tester.widget<Icon>(find.byIcon(iconData));
+      expect(
+        icon.color,
+        FinoraColors.textSecondary,
+        reason: '$iconData no debe resaltarse en /goals (ruta sin pestaña)',
+      );
+    }
+  });
+
+  testWidgets('(c) los 4 tabs del shell navegan a su destino', (tester) async {
+    await growTestSurface(tester);
+    await tester.pumpWidget(buildApp(buildShellRouter('/')));
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byIcon(Icons.credit_card));
+    await tester.pumpAndSettle();
+    expect(find.text('Cards dummy'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.bar_chart_rounded));
+    await tester.pumpAndSettle();
+    expect(find.text('Stats dummy'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.person_rounded));
+    await tester.pumpAndSettle();
+    expect(find.text('Settings dummy'), findsOneWidget);
+
+    await tester.tap(find.byIcon(Icons.home_rounded));
+    await tester.pumpAndSettle();
+    expect(find.text('Home dummy'), findsOneWidget);
+  });
+
+  testWidgets('(d) estando en un tab, ese tab se resalta en primary',
+      (tester) async {
+    await growTestSurface(tester);
+    await tester.pumpWidget(buildApp(buildShellRouter('/stats')));
+    await tester.pumpAndSettle();
+
+    final statsIcon = tester.widget<Icon>(find.byIcon(Icons.bar_chart_rounded));
+    expect(statsIcon.color, FinoraColors.primary);
+    // Los demas permanecen en textSecondary.
+    for (final iconData in navIcons.where((i) => i != Icons.bar_chart_rounded)) {
+      final icon = tester.widget<Icon>(find.byIcon(iconData));
+      expect(icon.color, FinoraColors.textSecondary);
+    }
   });
 }
