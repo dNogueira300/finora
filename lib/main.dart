@@ -5,6 +5,7 @@ import 'package:intl/date_symbol_data_local.dart';
 import 'package:intl/intl.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import 'core/app_lock_observer.dart';
 import 'core/env.dart';
 import 'core/finora_theme.dart';
 import 'core/router.dart';
@@ -70,6 +71,7 @@ class FinoraApp extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     ref.watch(syncCoordinatorProvider);
+    ref.watch(appLockObserverProvider);
     return MaterialApp.router(
       title: 'Finora',
       debugShowCheckedModeBanner: false,
