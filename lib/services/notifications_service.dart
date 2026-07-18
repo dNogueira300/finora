@@ -3,6 +3,7 @@ import 'dart:convert';
 
 import 'package:flutter_local_notifications/flutter_local_notifications.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:timezone/data/latest.dart' as tz_data;
 import 'package:timezone/timezone.dart' as tz;
 
@@ -11,6 +12,13 @@ import '../data/local/database.dart';
 import '../data/sync/sync_providers.dart';
 import '../features/alerts/alerts_dao_ext.dart';
 import '../features/calendar/due_dates.dart';
+
+/// `tz_data.initializeTimeZones()` es idempotente (solo reconstruye un mapa
+/// interno, sin guardar estado de "ya inicializado" que falle en la segunda
+/// llamada), asi que no hace falta cachear un booleano: cada punto que
+/// necesita `tz.getLocation` simplemente vuelve a llamarla. Ver
+/// `NotificationsService.init` y `scheduleCardReminders`.
+void _ensureTzInitialized() => tz_data.initializeTimeZones();
 
 /// Fecha/hora del recordatorio de pago: `daysBefore` dias antes de
 /// `dueDate`, a las 9:00 am. Funcion pura (sin zona horaria explicita: quien
@@ -171,7 +179,7 @@ class NotificationsService {
   final DateTime Function() _nowUtc;
 
   Future<void> init() async {
-    tz_data.initializeTimeZones();
+    _ensureTzInitialized();
     await _plugin.initialize(_onNotificationTap);
     await _plugin.requestAndroidPermission();
   }
@@ -209,7 +217,14 @@ class NotificationsService {
   /// esa fecha/hora ya paso (p. ej. vencimiento manana con `daysBefore` 3),
   /// se omite esa tarjeta: `zonedSchedule` lanza si se agenda en el pasado.
   /// Id estable por tarjeta: `account.id.hashCode & 0x7fffffff`.
+  ///
+  /// Llama `_ensureTzInitialized()` por su cuenta (no asume que `init()` ya
+  /// corrio): depender de ese orden es un invariante no-local que un futuro
+  /// llamador podria romper en silencio (el `tz.getLocation` de mas abajo
+  /// fallaria dentro del try/catch best-effort de quien invoque este metodo,
+  /// sin ninguna señal visible).
   Future<void> scheduleCardReminders(List<Account> creditCards, int daysBefore) async {
+    _ensureTzInitialized();
     await _plugin.cancelAll();
     final nowLima = toLima(_nowUtc());
     final todayLima = DateTime(nowLima.year, nowLima.month, nowLima.day);
@@ -246,3 +261,36 @@ final notificationsServiceProvider = Provider<NotificationsService>((ref) {
   final plugin = PluginNotificationsAdapter(FlutterLocalNotificationsPlugin());
   return NotificationsService(plugin, ref.watch(databaseProvider));
 });
+
+/// Reprograma los recordatorios de pago a partir del estado actual de la DB:
+/// usuario autenticado -> sus settings (`alertDaysBeforeDue`) -> sus cuentas
+/// de credito activas -> `NotificationsService.scheduleCardReminders`.
+///
+/// Punto unico compartido por los dos lugares que reprograman (Task 22):
+/// `SyncCoordinator.trigger()` tras un sync exitoso y
+/// `EditAccountSheet._save()` tras guardar una cuenta (de cualquier tipo:
+/// si una tarjeta se convierte a otro tipo, `scheduleCardReminders` cancela
+/// su recordatorio pendiente igual, porque cancela todo antes de reagendar).
+///
+/// Recibe `db`/`service` en vez de un `Ref`/`WidgetRef` a proposito:
+/// `SyncCoordinator` usa `Ref` y `EditAccountSheet` usa `WidgetRef`, que en
+/// flutter_riverpod 2.x son interfaces separadas (`WidgetRef` no extiende
+/// `Ref`), asi que un parametro unico de tipo `Ref` no serviria para ambos
+/// sitios; cada llamador resuelve `databaseProvider`/`notificationsServiceProvider`
+/// con su propio `ref` antes de invocar esta funcion.
+///
+/// Best-effort: cualquier fallo (sin sesion, sin plugin de notificaciones
+/// registrado como en los tests de widgets, etc.) se ignora en silencio para
+/// no bloquear el flujo que la invoca (guardar una cuenta / terminar un
+/// sync).
+Future<void> rescheduleCardRemindersFromDb(AppDatabase db, NotificationsService service) async {
+  try {
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    final settings = userId == null ? null : await db.settingsDao.get(userId);
+    final daysBefore = settings?.alertDaysBeforeDue ?? 3;
+    final creditCards =
+        (await db.accountsDao.watchActive().first).where((a) => a.type == 'credit').toList();
+    await service.scheduleCardReminders(creditCards, daysBefore);
+    // ignore: avoid_catches_without_on_clauses
+  } catch (_) {}
+}
