@@ -10,25 +10,28 @@ void main() {
     );
   }
 
-  testWidgets('muestra campos de email y contraseña con boton de login',
+  testWidgets('muestra campos de email y contraseña con el CTA Ingresar y el logo',
       (tester) async {
     await tester.pumpWidget(buildApp());
 
     expect(find.byType(TextField), findsNWidgets(2));
-    expect(find.text('Iniciar sesión'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Ingresar'), findsOneWidget);
+    expect(
+      find.image(const AssetImage('assets/brand/logo_inicio.png')),
+      findsOneWidget,
+    );
   });
 
-  testWidgets('el toggle cambia el texto del boton a Registrarme',
-      (tester) async {
+  testWidgets('el toggle cambia el CTA a Crear cuenta', (tester) async {
     await tester.pumpWidget(buildApp());
 
-    expect(find.text('Iniciar sesión'), findsOneWidget);
-    expect(find.text('Registrarme'), findsNothing);
+    expect(find.widgetWithText(FilledButton, 'Ingresar'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Crear cuenta'), findsNothing);
 
-    await tester.tap(find.text('¿No tienes cuenta? Regístrate'));
+    await tester.tap(find.widgetWithText(TextButton, 'Crear cuenta'));
     await tester.pump();
 
-    expect(find.text('Registrarme'), findsOneWidget);
-    expect(find.text('Iniciar sesión'), findsNothing);
+    expect(find.widgetWithText(FilledButton, 'Crear cuenta'), findsOneWidget);
+    expect(find.widgetWithText(FilledButton, 'Ingresar'), findsNothing);
   });
 }
