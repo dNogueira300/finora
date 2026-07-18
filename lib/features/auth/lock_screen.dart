@@ -31,7 +31,12 @@ class _LockScreenState extends ConsumerState<LockScreen> {
         child: Column(
           mainAxisAlignment: MainAxisAlignment.center,
           children: [
-            Image.asset('assets/brand/logo.png', height: 96),
+            Semantics(
+              label: 'Finora',
+              image: true,
+              child:
+                  Image.asset('assets/brand/logo_inicio.png', height: 120),
+            ),
             const SizedBox(height: 32),
             const Icon(Icons.fingerprint, size: 64),
             const SizedBox(height: 16),

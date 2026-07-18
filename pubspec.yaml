@@ -64,3 +64,17 @@ flutter:
   uses-material-design: true
   assets:
     - assets/brand/
+
+# Configuracion de flutter_launcher_icons: genera el icono de la app en Android
+# a partir del logo de marca. Solo se apunta a Android; iOS/web/windows no se tocan.
+flutter_launcher_icons:
+  android: true
+  ios: false
+  web:
+    generate: false
+  windows:
+    generate: false
+  image_path: assets/brand/logo.png
+  min_sdk_android: 23
+  adaptive_icon_background: "#16A34A"
+  adaptive_icon_foreground: assets/brand/logo.png

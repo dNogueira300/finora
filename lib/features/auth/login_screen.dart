@@ -53,7 +53,12 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
               mainAxisAlignment: MainAxisAlignment.center,
               crossAxisAlignment: CrossAxisAlignment.stretch,
               children: [
-                Image.asset('assets/brand/logo.png', height: 96),
+                Semantics(
+                  label: 'Finora',
+                  image: true,
+                  child: Image.asset('assets/brand/logo_inicio.png',
+                      height: 200),
+                ),
                 const SizedBox(height: 24),
                 Text(_isRegister ? 'Crea tu cuenta' : 'Bienvenido a Finora',
                     textAlign: TextAlign.center,
