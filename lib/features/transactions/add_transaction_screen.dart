@@ -11,6 +11,9 @@ import '../../core/finora_colors.dart';
 import '../../core/money.dart';
 import '../../data/local/database.dart';
 import '../../data/sync/sync_providers.dart';
+import '../../services/notifications_service.dart';
+import '../alerts/spending_limit_watcher.dart';
+import '../settings/settings_screen.dart' show currentUserIdProvider;
 
 /// Categorias del `kind` actualmente seleccionado (gasto/ingreso). Se define
 /// como `family` local a esta pantalla (autoDispose) siguiendo la misma
@@ -102,6 +105,25 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
             updatedAt: DateTime.now().toUtc(),
           ),
         );
+    if (_kind == 'expense') {
+      // Mejor esfuerzo (Task 23), mismo criterio que
+      // `rescheduleCardRemindersFromDb` (Task 22): revisar el limite de
+      // gasto mensual tras guardar un gasto no debe bloquear el
+      // guardado/cierre de esta pantalla si algo falla (sin sesion, sin
+      // limite configurado, plugin de notificaciones no disponible como en
+      // los tests de widgets).
+      try {
+        final userId = ref.read(currentUserIdProvider);
+        if (userId != null) {
+          await checkSpendingLimit(
+            ref.read(databaseProvider),
+            ref.read(notificationsServiceProvider),
+            userId,
+          );
+        }
+        // ignore: avoid_catches_without_on_clauses
+      } catch (_) {}
+    }
     if (mounted) context.pop();
   }
 
