@@ -17,6 +17,7 @@ class AppShell extends StatelessWidget {
     return Scaffold(
       body: child,
       floatingActionButton: FloatingActionButton(
+        heroTag: 'shell-fab',
         onPressed: () => context.push('/add'),
         backgroundColor: FinoraColors.primary,
         child: const Icon(Icons.add, color: Colors.white),

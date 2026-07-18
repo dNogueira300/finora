@@ -69,6 +69,7 @@ class _CardsScreenState extends ConsumerState<CardsScreen> {
         ],
       ),
       floatingActionButton: FloatingActionButton.extended(
+        heroTag: 'cards-new-account-fab',
         onPressed: () => _openEditSheet(context),
         backgroundColor: FinoraColors.primary,
         icon: const Icon(Icons.add, color: Colors.white),
