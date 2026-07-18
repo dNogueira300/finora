@@ -23,7 +23,15 @@ class TxnTile extends StatelessWidget {
   Widget build(BuildContext context) {
     final isExpense = txn.kind == 'expense';
     final amountColor = isExpense ? FinoraColors.expense : FinoraColors.income;
-    final iconColor = category != null ? Color(category!.color) : amountColor;
+    // Sin categoria (borrada o aun no cargada): avatar gris neutro con el
+    // icono generico, NUNCA el color del monto (fix T14). Con categoria: color
+    // propio de la categoria sobre su mismo tono al 15%.
+    final hasCategory = category != null;
+    final iconColor =
+        hasCategory ? Color(category!.color) : FinoraColors.textSecondary;
+    final avatarBg = hasCategory
+        ? iconColor.withValues(alpha: .15)
+        : FinoraColors.border;
     final icon = categoryIcons[category?.icon] ?? Icons.category;
     final title = category?.name ?? 'Sin categoría';
     final note = txn.note;
@@ -34,7 +42,7 @@ class TxnTile extends StatelessWidget {
     return ListTile(
       contentPadding: EdgeInsets.zero,
       leading: CircleAvatar(
-        backgroundColor: iconColor.withValues(alpha: .1),
+        backgroundColor: avatarBg,
         child: Icon(icon, color: iconColor),
       ),
       title: Text(title),

@@ -6,10 +6,12 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
+import 'package:finora/core/finora_colors.dart';
 import 'package:finora/data/local/database.dart';
 import 'package:finora/data/sync/sync_providers.dart';
 import 'package:finora/features/alerts/alerts_dao_ext.dart';
 import 'package:finora/features/dashboard/dashboard_screen.dart';
+import 'package:finora/features/dashboard/widgets/txn_tile.dart';
 
 // La mayoria de estos tests no pumpean AppShell ni el router:
 // `DashboardScreen` usa `context.push`/`context.go` unicamente dentro de
@@ -52,8 +54,15 @@ void main() {
     // currentUser es null y el saludo cae al fallback sin nombre.
     expect(find.text('Hola'), findsOneWidget);
     expect(find.byIcon(Icons.cloud_done), findsOneWidget); // syncStatusProvider arranca en idle
+    expect(find.text('Saldo total'), findsOneWidget); // label del header de marca
     expect(find.text('Registra tu primer gasto con el botón +'), findsOneWidget);
     expect(find.text('S/ 0.00'), findsWidgets);
+
+    // Las 4 acciones rapidas de la sheet estan presentes.
+    expect(find.text('Agregar gasto'), findsOneWidget);
+    expect(find.text('Agregar ingreso'), findsOneWidget);
+    expect(find.text('Calendario'), findsOneWidget);
+    expect(find.text('Metas'), findsOneWidget);
 
     // Desmontar el arbol y drenar los timers pendientes de drift (los
     // StreamProvider.autoDispose dejan un Timer de la conexion de drift que
@@ -125,6 +134,38 @@ void main() {
     await tester.pump(const Duration(seconds: 1));
   });
 
+  testWidgets(
+      'una transaccion sin categoria usa un avatar gris neutro, no el color del monto',
+      (tester) async {
+    // Transaccion cuyo `categoryId` no existe como Category: el mapa de
+    // categorias resuelve a null y la tile cae al estado "Sin categoría".
+    await db.transactionsDao.insertTxn(TransactionsCompanion.insert(
+      id: 't1',
+      accountId: 'a1',
+      categoryId: 'inexistente',
+      kind: 'expense',
+      amountCents: 1000,
+      occurredAt: DateTime.now().toUtc(),
+      updatedAt: DateTime.now().toUtc(),
+    ));
+
+    await tester.pumpWidget(buildApp());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Sin categoría'), findsOneWidget);
+
+    final avatar = tester.widget<CircleAvatar>(find.descendant(
+      of: find.byType(TxnTile),
+      matching: find.byType(CircleAvatar),
+    ));
+    // Fondo gris neutro (border), no el color del monto (expense) al 15%.
+    expect(avatar.backgroundColor, FinoraColors.border);
+    expect(avatar.backgroundColor, isNot(FinoraColors.expense.withValues(alpha: .15)));
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 1));
+  });
+
   testWidgets('sin metas, el card "Metas de ahorro" invita a crear la primera', (tester) async {
     await tester.pumpWidget(buildApp());
     await tester.pumpAndSettle();
@@ -139,6 +180,14 @@ void main() {
   testWidgets(
       'el card "Metas de ahorro" muestra la meta con fecha limite mas proxima y navega a /goals al tocarlo',
       (tester) async {
+    // La sheet ahora es mas alta (acciones + resumen + lista + metas), asi que
+    // el card "Metas de ahorro" queda debajo del viewport por defecto
+    // (800x600). Se agranda la vista para que sea tappable sin scroll.
+    tester.view.physicalSize = const Size(1200, 2400);
+    tester.view.devicePixelRatio = 1.0;
+    addTearDown(tester.view.resetPhysicalSize);
+    addTearDown(tester.view.resetDevicePixelRatio);
+
     final now = DateTime.now().toUtc();
     // "Auto" vence antes que "Casa": debe ser la meta destacada aunque se
     // haya insertado despues (ver `nearestGoal` en `dashboard_screen.dart`).

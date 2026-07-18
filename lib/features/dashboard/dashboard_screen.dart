@@ -5,11 +5,12 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/dates.dart';
 import '../../core/finora_colors.dart';
+import '../../core/finora_tokens.dart';
+import '../../core/finora_widgets.dart';
 import '../../core/money.dart';
 import '../../data/local/database.dart';
 import '../../data/sync/sync_providers.dart';
 import '../alerts/alerts_screen.dart';
-import 'widgets/summary_card.dart';
 import 'widgets/txn_tile.dart';
 
 /// Las 10 transacciones mas recientes. Ademas de alimentar la lista de la
@@ -126,94 +127,165 @@ class DashboardScreen extends ConsumerWidget {
     final goalsAsync = ref.watch(_goalsProvider);
     final unreadCount = ref.watch(unreadCountProvider).valueOrNull ?? 0;
 
+    final textTheme = Theme.of(context).textTheme;
+
     return Scaffold(
-      body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(16),
+      backgroundColor: FinoraColors.background,
+      body: SingleChildScrollView(
+        padding: EdgeInsets.zero,
+        child: Column(
           children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(greeting, style: Theme.of(context).textTheme.titleLarge),
-                ),
-                _SyncIndicator(status: syncStatus),
-                Badge(
-                  label: Text('$unreadCount'),
-                  isLabelVisible: unreadCount > 0,
-                  child: IconButton(
-                    icon: const Icon(Icons.notifications_none_rounded),
-                    tooltip: 'Alertas',
-                    onPressed: () => context.push('/alerts'),
+            // Cabecera de marca con degradado: saludo + campana y, en grande,
+            // el saldo total estilo "wallet".
+            BrandHeader(
+              padding: EdgeInsets.zero,
+              child: SafeArea(
+                bottom: false,
+                child: Padding(
+                  // Padding inferior generoso: la sheet se sube (Transform) y
+                  // solapa el borde inferior del header sin tapar el monto.
+                  padding: const EdgeInsets.fromLTRB(
+                    FinoraTokens.s16,
+                    FinoraTokens.s16,
+                    FinoraTokens.s16,
+                    FinoraTokens.s32,
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Expanded(
+                            child: Text(
+                              greeting,
+                              style: textTheme.titleLarge?.copyWith(
+                                color: Colors.white,
+                                fontWeight: FontWeight.w700,
+                              ),
+                            ),
+                          ),
+                          _SyncIndicator(status: syncStatus),
+                          const SizedBox(width: FinoraTokens.s4),
+                          Badge(
+                            label: Text('$unreadCount'),
+                            isLabelVisible: unreadCount > 0,
+                            child: IconButton(
+                              icon: const Icon(
+                                Icons.notifications_none_rounded,
+                                color: Colors.white,
+                              ),
+                              tooltip: 'Alertas',
+                              onPressed: () => context.push('/alerts'),
+                            ),
+                          ),
+                        ],
+                      ),
+                      const SizedBox(height: FinoraTokens.s16),
+                      const Text(
+                        'Saldo total',
+                        style: TextStyle(fontSize: 13, color: Colors.white70),
+                      ),
+                      const SizedBox(height: FinoraTokens.s4),
+                      Text(
+                        formatMoney(balanceAsync.valueOrNull ?? 0),
+                        style: textTheme.displaySmall?.copyWith(
+                          color: Colors.white,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
                   ),
                 ),
-              ],
+              ),
             ),
-            const SizedBox(height: 12),
-            _BalanceCard(cents: balanceAsync.valueOrNull ?? 0),
-            const SizedBox(height: 16),
-            Row(
-              children: [
-                Expanded(
-                  child: SummaryCard(
-                    label: 'Ingresos del mes',
-                    cents: totals?.incomeCents ?? 0,
-                    color: FinoraColors.income,
-                    icon: Icons.arrow_downward_rounded,
-                  ),
+            // La sheet solapa el header subiendo el radio de sus esquinas.
+            Transform.translate(
+              offset: const Offset(0, -FinoraTokens.rSheet),
+              child: ContentSheet(
+                padding: const EdgeInsets.fromLTRB(
+                  FinoraTokens.s16,
+                  FinoraTokens.s24,
+                  FinoraTokens.s16,
+                  FinoraTokens.s24,
                 ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: SummaryCard(
-                    label: 'Gastos del mes',
-                    cents: totals?.expenseCents ?? 0,
-                    color: FinoraColors.expense,
-                    icon: Icons.arrow_upward_rounded,
-                  ),
-                ),
-                const SizedBox(width: 12),
-                Expanded(
-                  child: SummaryCard(
-                    label: 'Ahorro',
-                    cents: (totals?.incomeCents ?? 0) - (totals?.expenseCents ?? 0),
-                    color: FinoraColors.savings,
-                    icon: Icons.savings_rounded,
-                  ),
-                ),
-              ],
-            ),
-            const SizedBox(height: 16),
-            _GoalsCard(goal: nearestGoal(goalsAsync.valueOrNull ?? const [])),
-            const SizedBox(height: 24),
-            Text('Transacciones recientes', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            txnsAsync.when(
-              data: (txns) {
-                if (txns.isEmpty) {
-                  return const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 32),
-                    child: Center(
-                      child: Text(
-                        'Registra tu primer gasto con el botón +',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: FinoraColors.textSecondary),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    // 1. Acciones rapidas.
+                    Row(
+                      mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Squircle(
+                          icon: Icons.remove_circle_outline,
+                          label: 'Agregar gasto',
+                          highlighted: true,
+                          onTap: () => context.push('/add'),
+                        ),
+                        Squircle(
+                          icon: Icons.add_circle_outline,
+                          label: 'Agregar ingreso',
+                          onTap: () => context.push('/add'),
+                        ),
+                        Squircle(
+                          icon: Icons.calendar_month_outlined,
+                          label: 'Calendario',
+                          onTap: () => context.push('/calendar'),
+                        ),
+                        Squircle(
+                          icon: Icons.savings_outlined,
+                          label: 'Metas',
+                          onTap: () => context.go('/goals'),
+                        ),
+                      ],
+                    ),
+                    const SizedBox(height: FinoraTokens.s24),
+                    // 2. Resumen del mes.
+                    const SectionHeader('Resumen del mes'),
+                    const SizedBox(height: FinoraTokens.s12),
+                    _MonthSummaryCard(
+                      incomeCents: totals?.incomeCents ?? 0,
+                      expenseCents: totals?.expenseCents ?? 0,
+                    ),
+                    const SizedBox(height: FinoraTokens.s24),
+                    // 3. Movimientos recientes.
+                    const SectionHeader('Movimientos recientes'),
+                    const SizedBox(height: FinoraTokens.s8),
+                    txnsAsync.when(
+                      data: (txns) {
+                        if (txns.isEmpty) {
+                          return const Padding(
+                            padding: EdgeInsets.symmetric(vertical: 32),
+                            child: Center(
+                              child: Text(
+                                'Registra tu primer gasto con el botón +',
+                                textAlign: TextAlign.center,
+                                style: TextStyle(color: FinoraColors.textSecondary),
+                              ),
+                            ),
+                          );
+                        }
+                        return Column(
+                          children: [
+                            for (final txn in txns)
+                              TxnTile(txn: txn, category: categories[txn.categoryId]),
+                          ],
+                        );
+                      },
+                      loading: () => const Padding(
+                        padding: EdgeInsets.symmetric(vertical: 32),
+                        child: Center(child: CircularProgressIndicator()),
+                      ),
+                      error: (e, _) => Padding(
+                        padding: const EdgeInsets.symmetric(vertical: 32),
+                        child: Center(child: Text('No se pudo cargar: $e')),
                       ),
                     ),
-                  );
-                }
-                return Column(
-                  children: [
-                    for (final txn in txns)
-                      TxnTile(txn: txn, category: categories[txn.categoryId]),
+                    const SizedBox(height: FinoraTokens.s16),
+                    // 4. Metas de ahorro.
+                    _GoalsCard(goal: nearestGoal(goalsAsync.valueOrNull ?? const [])),
                   ],
-                );
-              },
-              loading: () => const Padding(
-                padding: EdgeInsets.symmetric(vertical: 32),
-                child: Center(child: CircularProgressIndicator()),
-              ),
-              error: (e, _) => Padding(
-                padding: const EdgeInsets.symmetric(vertical: 32),
-                child: Center(child: Text('No se pudo cargar: $e')),
+                ),
               ),
             ),
           ],
@@ -223,34 +295,83 @@ class DashboardScreen extends ConsumerWidget {
   }
 }
 
-class _BalanceCard extends StatelessWidget {
-  const _BalanceCard({required this.cents});
-  final int cents;
+/// Card unica "Resumen del mes": tres indicadores (ingresos, gastos y
+/// balance del mes) en una fila, separados por divisores verticales y con los
+/// montos coloreados segun su significado.
+class _MonthSummaryCard extends StatelessWidget {
+  const _MonthSummaryCard({required this.incomeCents, required this.expenseCents});
+  final int incomeCents;
+  final int expenseCents;
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      width: double.infinity,
-      padding: const EdgeInsets.all(20),
-      decoration: BoxDecoration(
-        borderRadius: BorderRadius.circular(20),
-        gradient: const LinearGradient(
-          begin: Alignment.topLeft,
-          end: Alignment.bottomRight,
-          colors: [FinoraColors.primary, FinoraColors.primaryDark],
+    return Card(
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(FinoraTokens.rCard),
+      ),
+      child: Padding(
+        padding: const EdgeInsets.symmetric(
+          vertical: FinoraTokens.s16,
+          horizontal: FinoraTokens.s8,
+        ),
+        child: IntrinsicHeight(
+          child: Row(
+            children: [
+              Expanded(
+                child: _SummaryItem(
+                  label: 'Ingresos',
+                  cents: incomeCents,
+                  color: FinoraColors.income,
+                ),
+              ),
+              const VerticalDivider(width: 1, color: FinoraColors.border),
+              Expanded(
+                child: _SummaryItem(
+                  label: 'Gastos',
+                  cents: expenseCents,
+                  color: FinoraColors.expense,
+                ),
+              ),
+              const VerticalDivider(width: 1, color: FinoraColors.border),
+              Expanded(
+                child: _SummaryItem(
+                  label: 'Balance',
+                  cents: incomeCents - expenseCents,
+                  color: FinoraColors.savings,
+                ),
+              ),
+            ],
+          ),
         ),
       ),
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Saldo total', style: TextStyle(color: Colors.white70)),
-          const SizedBox(height: 8),
-          Text(
-            formatMoney(cents),
-            style: const TextStyle(color: Colors.white, fontSize: 28, fontWeight: FontWeight.w700),
+    );
+  }
+}
+
+class _SummaryItem extends StatelessWidget {
+  const _SummaryItem({required this.label, required this.cents, required this.color});
+  final String label;
+  final int cents;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Column(
+      children: [
+        Text(
+          label,
+          style: const TextStyle(fontSize: 12, color: FinoraColors.textSecondary),
+        ),
+        const SizedBox(height: FinoraTokens.s4),
+        Text(
+          formatMoney(cents),
+          textAlign: TextAlign.center,
+          style: TextStyle(
+            fontWeight: FontWeight.w700,
+            color: color,
           ),
-        ],
-      ),
+        ),
+      ],
     );
   }
 }
@@ -267,12 +388,15 @@ class _GoalsCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    return GestureDetector(
-      onTap: () => context.go('/goals'),
-      child: Card(
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+    return Card(
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(FinoraTokens.rCard),
+      ),
+      child: InkWell(
+        onTap: () => context.go('/goals'),
         child: Padding(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(FinoraTokens.s16),
           child: goal == null ? _buildEmpty(context) : _buildGoal(context, goal!),
         ),
       ),
