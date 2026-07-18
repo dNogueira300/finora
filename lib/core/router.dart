@@ -10,6 +10,7 @@ import '../features/alerts/alerts_screen.dart';
 import '../features/calendar/calendar_screen.dart';
 import '../features/dashboard/dashboard_screen.dart';
 import '../features/goals/goals_screen.dart';
+import '../features/settings/settings_screen.dart';
 import '../features/stats/stats_screen.dart';
 import '../features/transactions/add_transaction_screen.dart';
 import 'app_shell.dart';
@@ -80,7 +81,7 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/cards', builder: (_, _) => const CardsScreen()),
           GoRoute(path: '/stats', builder: (_, _) => const StatsScreen()),
           GoRoute(path: '/goals', builder: (_, _) => const GoalsScreen()),
-          GoRoute(path: '/settings', builder: (_, _) => const _Placeholder('Configuración')),
+          GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
         ],
       ),
       GoRoute(path: '/add', builder: (_, _) => const AddTransactionScreen()),
@@ -89,11 +90,3 @@ final routerProvider = Provider<GoRouter>((ref) {
     ],
   );
 });
-
-class _Placeholder extends StatelessWidget {
-  const _Placeholder(this.title);
-  final String title;
-  @override
-  Widget build(BuildContext context) =>
-      Scaffold(appBar: AppBar(title: Text(title)));
-}
