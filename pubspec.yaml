@@ -55,6 +55,7 @@ dev_dependencies:
   flutter_lints: ^6.0.0
   flutter_launcher_icons: ^0.14.3
   flutter_native_splash: ^2.4.5
+  image: ^4.9.1
 
 # For information on the generic Dart part of this file, see the
 # following page: https://dart.dev/tools/pub/pubspec
@@ -77,4 +78,19 @@ flutter_launcher_icons:
   image_path: assets/brand/logo.png
   min_sdk_android: 23
   adaptive_icon_background: "#16A34A"
-  adaptive_icon_foreground: assets/brand/logo.png
+  # Foreground con padding (lienzo 1024x1024, logo a 640px centrado) para que
+  # el recorte ~33% de la mascara adaptativa no corte el logo. Generado con
+  # tool/make_padded_icon.dart a partir de assets/brand/logo.png.
+  adaptive_icon_foreground: "assets/icon/icon_padded.png"
+
+# Configuracion de flutter_native_splash: splash screen nativo con el logo de
+# marca centrado sobre fondo claro, mostrado mientras Flutter inicializa.
+flutter_native_splash:
+  color: "#F8FAFC"
+  image: "assets/brand/logo.png"
+  # Solo Android: el proyecto no mantiene el target iOS activo (ver
+  # flutter_launcher_icons.ios: false) y no se quiere tocar ios/Runner.
+  ios: false
+  android_12:
+    color: "#F8FAFC"
+    image: "assets/brand/logo.png"
