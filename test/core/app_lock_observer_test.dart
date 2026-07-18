@@ -23,6 +23,14 @@ import 'package:finora/services/biometric_service.dart';
 /// Se usa `await Future<void>.delayed(Duration.zero)` (repetido) para dar
 /// tiempo a que esa cadena de futuros complete antes de leer
 /// `appLockedProvider`.
+///
+/// `appLockLifecycleStateProvider` (indireccion sobre
+/// `WidgetsBinding.instance.lifecycleState`) se sobreescribe explicitamente
+/// en los tests que llegan a chequearla, para no depender del valor real que
+/// `TestWidgetsFlutterBinding` le de por defecto: los tests que esperan que
+/// SI bloquee fijan `AppLifecycleState.paused` (la app sigue en fondo cuando
+/// resuelve el `await`); el test de la carrera fija `resumed` para simular
+/// que el usuario ya volvio mientras la lectura estaba en curso.
 void main() {
   TestWidgetsFlutterBinding.ensureInitialized();
   driftRuntimeOptions.dontWarnAboutMultipleDatabases = true;
@@ -52,12 +60,20 @@ void main() {
     }
   }
 
-  ProviderContainer buildContainer({required BiometricService biometric}) {
+  ProviderContainer buildContainer({
+    required BiometricService biometric,
+    AppLifecycleState? lifecycleState,
+  }) {
     final container = ProviderContainer(overrides: [
       databaseProvider.overrideWithValue(db),
       biometricServiceProvider.overrideWithValue(biometric),
       currentUserIdProvider.overrideWithValue(userId),
-      // Arranca desbloqueada para poder observar la transicion a `true`.
+      // Por defecto no se sobreescribe `appLockLifecycleStateProvider`: usa
+      // el binding real, que en `flutter_test` arranca en `resumed`, salvo
+      // que un test necesite forzar otro valor (ver test de la carrera
+      // paused->resumed mas abajo).
+      if (lifecycleState != null)
+        appLockLifecycleStateProvider.overrideWithValue(() => lifecycleState),
     ]);
     container.read(appLockedProvider.notifier).state = false;
     addTearDown(container.dispose);
@@ -67,7 +83,12 @@ void main() {
   test('biometricEnabled=true + logueado + paused -> appLocked pasa a true',
       () async {
     await setBiometricEnabled(true);
-    final container = buildContainer(biometric: BiometricService());
+    // La app sigue en `paused` cuando se resuelve la lectura de la DB (no
+    // hubo un resume rapido de por medio).
+    final container = buildContainer(
+      biometric: BiometricService(),
+      lifecycleState: AppLifecycleState.paused,
+    );
     final observer = container.read(appLockObserverProvider);
 
     observer.didChangeAppLifecycleState(AppLifecycleState.paused);
@@ -94,7 +115,10 @@ void main() {
       () async {
     await setBiometricEnabled(true);
     final biometric = BiometricService();
-    final container = buildContainer(biometric: biometric);
+    final container = buildContainer(
+      biometric: biometric,
+      lifecycleState: AppLifecycleState.paused,
+    );
     final observer = container.read(appLockObserverProvider);
 
     // Simula que LockScreen/Settings estan en medio de un authenticate():
@@ -110,6 +134,26 @@ void main() {
     observer.didChangeAppLifecycleState(AppLifecycleState.paused);
     await flushAsync();
     expect(container.read(appLockedProvider), true);
+  });
+
+  test(
+      'paused pero ya resumed cuando resuelve la lectura de la DB -> no '
+      'bloquea (evita el redirect espurio a /lock)', () async {
+    await setBiometricEnabled(true);
+    // Simula que el usuario solo dio un vistazo a la barra de
+    // notificaciones y ya volvio: para cuando `_maybeLock` termina de leer
+    // `biometricEnabled`, `WidgetsBinding.instance.lifecycleState` (via el
+    // provider sobreescrito aqui) ya es `resumed`, no `paused`.
+    final container = buildContainer(
+      biometric: BiometricService(),
+      lifecycleState: AppLifecycleState.resumed,
+    );
+    final observer = container.read(appLockObserverProvider);
+
+    observer.didChangeAppLifecycleState(AppLifecycleState.paused);
+    await flushAsync();
+
+    expect(container.read(appLockedProvider), false);
   });
 
   test('evento inactive nunca bloquea', () async {
