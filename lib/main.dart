@@ -10,6 +10,7 @@ import 'core/finora_theme.dart';
 import 'core/router.dart';
 import 'data/sync/sync_providers.dart';
 import 'features/auth/lock_screen.dart';
+import 'services/notifications_service.dart';
 
 Future<void> main() async {
   WidgetsFlutterBinding.ensureInitialized();
@@ -48,6 +49,15 @@ Future<void> main() async {
     locked = settings?.biometricEnabled ?? false;
   }
   container.read(appLockedProvider.notifier).state = locked;
+
+  // Init de notificaciones locales (Task 22): canal `finora_reminders`,
+  // permiso POST_NOTIFICATIONS y timezone. Best-effort: un fallo aqui (p.
+  // ej. plugin no soportado en el dispositivo) no debe impedir que la app
+  // arranque.
+  try {
+    await container.read(notificationsServiceProvider).init();
+    // ignore: avoid_catches_without_on_clauses
+  } catch (_) {}
 
   runApp(
     UncontrolledProviderScope(container: container, child: const FinoraApp()),

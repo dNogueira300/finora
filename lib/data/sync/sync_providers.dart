@@ -6,6 +6,7 @@ import 'package:flutter/widgets.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
+import '../../services/notifications_service.dart';
 import '../local/database.dart';
 import '../local/seed.dart';
 import '../remote/supabase_remote.dart';
@@ -99,11 +100,30 @@ class SyncCoordinator with WidgetsBindingObserver {
       _ref.read(syncStatusProvider.notifier).state = SyncStatus.syncing;
       await _ref.read(syncEngineProvider).synchronize();
       _ref.read(syncStatusProvider.notifier).state = SyncStatus.idle;
+      await _rescheduleCardReminders();
     } catch (_) {
       _ref.read(syncStatusProvider.notifier).state = SyncStatus.error;
     } finally {
       _running = false;
     }
+  }
+
+  /// Reprograma los recordatorios de pago (Task 22) tras un sync exitoso:
+  /// `pull()` pudo haber traido cuentas de credito o settings nuevos desde
+  /// otro dispositivo. Best-effort y con su propio try/catch (en vez de
+  /// dejar que la excepcion suba a `trigger()`): un fallo aqui no debe
+  /// revertir el estado `idle` que el sync ya alcanzo.
+  Future<void> _rescheduleCardReminders() async {
+    try {
+      final db = _ref.read(databaseProvider);
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      final settings = userId == null ? null : await db.settingsDao.get(userId);
+      final daysBefore = settings?.alertDaysBeforeDue ?? 3;
+      final creditCards =
+          (await db.accountsDao.watchActive().first).where((a) => a.type == 'credit').toList();
+      await _ref.read(notificationsServiceProvider).scheduleCardReminders(creditCards, daysBefore);
+      // ignore: avoid_catches_without_on_clauses
+    } catch (_) {}
   }
 
   void dispose() {

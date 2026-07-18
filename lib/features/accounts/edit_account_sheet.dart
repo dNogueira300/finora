@@ -1,12 +1,14 @@
 import 'package:drift/drift.dart' hide Column;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../core/finora_colors.dart';
 import '../../core/money.dart';
 import '../../data/local/database.dart';
 import '../../data/sync/sync_providers.dart';
+import '../../services/notifications_service.dart';
 
 /// Etiquetas en español de `Account.type`. Publico (sin `_`) para que
 /// `cards_screen.dart` lo reutilice sin duplicar el mapa.
@@ -134,7 +136,27 @@ class _EditAccountSheetState extends ConsumerState<EditAccountSheet> {
           color: Value(_color),
           updatedAt: DateTime.now().toUtc(),
         ));
+    await _rescheduleCardReminders();
     if (mounted) Navigator.of(context).pop();
+  }
+
+  /// Reprograma los recordatorios de pago (Task 22) tras guardar CUALQUIER
+  /// cuenta, no solo las de credito: si una tarjeta se convierte a otro
+  /// tipo, su recordatorio pendiente debe cancelarse tambien, y
+  /// `scheduleCardReminders` ya cancela todo antes de reagendar. Best-effort:
+  /// un fallo (p. ej. sin sesion, o en entornos de test sin plugin de
+  /// notificaciones registrado) no debe impedir guardar la cuenta.
+  Future<void> _rescheduleCardReminders() async {
+    try {
+      final db = ref.read(databaseProvider);
+      final userId = Supabase.instance.client.auth.currentUser?.id;
+      final settings = userId == null ? null : await db.settingsDao.get(userId);
+      final daysBefore = settings?.alertDaysBeforeDue ?? 3;
+      final creditCards =
+          (await db.accountsDao.watchActive().first).where((a) => a.type == 'credit').toList();
+      await ref.read(notificationsServiceProvider).scheduleCardReminders(creditCards, daysBefore);
+      // ignore: avoid_catches_without_on_clauses
+    } catch (_) {}
   }
 
   @override
