@@ -15,7 +15,7 @@ ThemeData finoraTheme() {
     scaffoldBackgroundColor: FinoraColors.background,
   );
   return base.copyWith(
-    textTheme: GoogleFonts.interTextTheme(base.textTheme).apply(
+    textTheme: GoogleFonts.nunitoSansTextTheme(base.textTheme).apply(
       bodyColor: FinoraColors.textPrimary,
       displayColor: FinoraColors.textPrimary,
     ),
