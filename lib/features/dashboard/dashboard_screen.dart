@@ -115,7 +115,7 @@ class DashboardScreen extends ConsumerWidget {
   Widget build(BuildContext context, WidgetRef ref) {
     final email = _currentUserEmail();
     final localPart = email?.split('@').first;
-    final greeting = localPart == null || localPart.isEmpty ? 'Hola 👋' : 'Hola, $localPart 👋';
+    final greeting = localPart == null || localPart.isEmpty ? 'Hola' : 'Hola, $localPart';
 
     final syncStatus = ref.watch(syncStatusProvider);
     final txnsAsync = ref.watch(recentTxnsProvider);

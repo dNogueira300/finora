@@ -50,7 +50,7 @@ void main() {
 
     // Supabase.instance no esta inicializado en el entorno de test, asi que
     // currentUser es null y el saludo cae al fallback sin nombre.
-    expect(find.text('Hola 👋'), findsOneWidget);
+    expect(find.text('Hola'), findsOneWidget);
     expect(find.byIcon(Icons.cloud_done), findsOneWidget); // syncStatusProvider arranca en idle
     expect(find.text('Registra tu primer gasto con el botón +'), findsOneWidget);
     expect(find.text('S/ 0.00'), findsWidgets);
