@@ -74,6 +74,8 @@ class _LockScreenState extends ConsumerState<LockScreen> {
     return Scaffold(
       body: DecoratedBox(
         decoration: const BoxDecoration(gradient: FinoraTokens.brandGradient),
+        // Dos Expanded con el mismo flex: la capa verde (logo + saludo) y la
+        // sheet blanca ocupan 50-50 de la pantalla.
         child: Column(
           children: [
             Expanded(
@@ -103,44 +105,61 @@ class _LockScreenState extends ConsumerState<LockScreen> {
                 ),
               ),
             ),
-            ContentSheet(
-              padding: EdgeInsets.fromLTRB(
-                FinoraTokens.s24,
-                FinoraTokens.s24,
-                FinoraTokens.s24,
-                FinoraTokens.s24 + bottomInset,
-              ),
-              child: Column(
-                mainAxisSize: MainAxisSize.min,
-                crossAxisAlignment: CrossAxisAlignment.stretch,
-                children: [
-                  SizedBox(
-                    height: 56,
-                    child: FilledButton.icon(
-                      onPressed: _tryUnlock,
-                      style: FilledButton.styleFrom(
-                        backgroundColor: FinoraColors.primary,
-                        foregroundColor: FinoraColors.surface,
-                        shape: RoundedRectangleBorder(
-                          borderRadius: BorderRadius.circular(
-                            FinoraTokens.rPill,
+            Expanded(
+              child: ContentSheet(
+                padding: EdgeInsets.fromLTRB(
+                  FinoraTokens.s24,
+                  FinoraTokens.s24,
+                  FinoraTokens.s24,
+                  FinoraTokens.s24 + bottomInset,
+                ),
+                child: Column(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  crossAxisAlignment: CrossAxisAlignment.stretch,
+                  children: [
+                    SizedBox(
+                      height: 56,
+                      child: FilledButton.icon(
+                        onPressed: _tryUnlock,
+                        style: FilledButton.styleFrom(
+                          backgroundColor: FinoraColors.primary,
+                          foregroundColor: FinoraColors.surface,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(
+                              FinoraTokens.rPill,
+                            ),
+                          ),
+                        ),
+                        icon: const Icon(Icons.fingerprint),
+                        // Mismo estilo que el CTA del login (18, negrita).
+                        label: const Text(
+                          'Ingresar con huella digital',
+                          style: TextStyle(
+                            fontSize: 18,
+                            fontWeight: FontWeight.w700,
                           ),
                         ),
                       ),
-                      icon: const Icon(Icons.fingerprint),
-                      label: const Text('Ingresar con huella digital'),
                     ),
-                  ),
-                  const SizedBox(height: FinoraTokens.s8),
-                  TextButton(
-                    onPressed: _logout,
-                    style: TextButton.styleFrom(
-                      foregroundColor: FinoraColors.textSecondary,
-                      minimumSize: const Size(0, 44),
+                    const SizedBox(height: FinoraTokens.s8),
+                    TextButton(
+                      onPressed: _logout,
+                      style: TextButton.styleFrom(
+                        foregroundColor: FinoraColors.textSecondary,
+                        minimumSize: const Size(0, 44),
+                      ),
+                      // Mismo estilo que el enlace secundario del login
+                      // (16, negrita).
+                      child: const Text(
+                        'Cerrar sesión',
+                        style: TextStyle(
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
                     ),
-                    child: const Text('Cerrar sesión'),
-                  ),
-                ],
+                  ],
+                ),
               ),
             ),
           ],

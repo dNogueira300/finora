@@ -32,8 +32,9 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       // La navegación la maneja el redirect del router (Task 10).
     } on AuthException catch (e) {
       if (mounted) {
-        ScaffoldMessenger.of(context)
-            .showSnackBar(SnackBar(content: Text(e.message)));
+        ScaffoldMessenger.of(
+          context,
+        ).showSnackBar(SnackBar(content: Text(e.message)));
       }
     } finally {
       if (mounted) setState(() => _loading = false);
@@ -137,8 +138,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                         ? 'Mostrar contraseña'
                                         : 'Ocultar contraseña',
                                     onPressed: () => setState(
-                                      () => _obscurePassword =
-                                          !_obscurePassword,
+                                      () =>
+                                          _obscurePassword = !_obscurePassword,
                                     ),
                                   ),
                                 ),
@@ -177,9 +178,8 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               ),
                               const SizedBox(height: FinoraTokens.s8),
                               TextButton(
-                                onPressed: () => setState(
-                                  () => _isRegister = !_isRegister,
-                                ),
+                                onPressed: () =>
+                                    setState(() => _isRegister = !_isRegister),
                                 style: TextButton.styleFrom(
                                   foregroundColor: FinoraColors.primary,
                                   minimumSize: const Size(0, 44),
@@ -192,6 +192,14 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   ),
                                 ),
                               ),
+                              // Nota: el flujo "olvide mi contraseña" por
+                              // codigo al correo existe en AuthRepository
+                              // (sendPasswordResetCode/resetPasswordWithCode)
+                              // pero NO se expone aqui: exige editar la
+                              // plantilla del correo de Supabase, que
+                              // requiere SMTP propio. El cambio de
+                              // contraseña vive en Perfil (usuario ya
+                              // autenticado).
                             ],
                           ),
                         ),

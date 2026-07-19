@@ -15,6 +15,7 @@ import '../../data/local/database.dart';
 import '../../data/sync/sync_providers.dart';
 import '../../services/notifications_service.dart';
 import '../alerts/spending_limit_watcher.dart';
+import '../categories/edit_category_sheet.dart';
 import '../settings/settings_screen.dart' show currentUserIdProvider;
 
 /// Categorias del `kind` actualmente seleccionado (gasto/ingreso). Se define
@@ -106,6 +107,97 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
       locale: const Locale('es'),
     );
     if (picked != null) setState(() => _date = picked);
+  }
+
+  /// Abre el sheet de nueva categoria pre-seleccionando el `kind` actual y,
+  /// si se creo una, la deja seleccionada (el sheet hace pop con su id).
+  Future<void> _createCategory() async {
+    final newId = await showModalBottomSheet<String>(
+      context: context,
+      isScrollControlled: true,
+      useSafeArea: true,
+      builder: (_) => EditCategorySheet(initialKind: _kind),
+    );
+    if (newId != null && mounted) {
+      setState(() => _selectedCategoryId = newId);
+    }
+  }
+
+  /// Menu de long-press sobre un chip de categoria: Editar (abre el sheet
+  /// pre-llenado) o Eliminar (con confirmacion; soft delete para que el sync
+  /// propague la baja). Si la categoria eliminada estaba seleccionada, se
+  /// limpia la seleccion.
+  Future<void> _showCategoryMenu(Category category) async {
+    final action = await showModalBottomSheet<String>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            ListTile(
+              leading: const Icon(Icons.edit_outlined),
+              title: const Text('Editar'),
+              onTap: () => Navigator.of(ctx).pop('edit'),
+            ),
+            ListTile(
+              leading: const Icon(
+                Icons.delete_outline,
+                color: FinoraColors.expense,
+              ),
+              title: const Text(
+                'Eliminar',
+                style: TextStyle(color: FinoraColors.expense),
+              ),
+              onTap: () => Navigator.of(ctx).pop('delete'),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (!mounted || action == null) return;
+
+    switch (action) {
+      case 'edit':
+        await showModalBottomSheet<String>(
+          context: context,
+          isScrollControlled: true,
+          useSafeArea: true,
+          builder: (_) => EditCategorySheet(category: category),
+        );
+      case 'delete':
+        final confirmed = await showDialog<bool>(
+          context: context,
+          builder: (ctx) => AlertDialog(
+            title: const Text('Eliminar categoría'),
+            content: Text(
+              '¿Eliminar "${category.name}"? Los movimientos ya registrados '
+              'se mostrarán como "Sin categoría".',
+            ),
+            actions: [
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(false),
+                child: const Text('Cancelar'),
+              ),
+              TextButton(
+                onPressed: () => Navigator.of(ctx).pop(true),
+                child: const Text(
+                  'Eliminar',
+                  style: TextStyle(color: FinoraColors.expense),
+                ),
+              ),
+            ],
+          ),
+        );
+        if (confirmed == true && mounted) {
+          await ref
+              .read(databaseProvider)
+              .categoriesDao
+              .softDelete(category.id);
+          if (mounted && _selectedCategoryId == category.id) {
+            setState(() => _selectedCategoryId = null);
+          }
+        }
+    }
   }
 
   Future<void> _editNote() async {
@@ -319,47 +411,69 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
                     const SizedBox(height: FinoraTokens.s12),
                     categoriesAsync.when(
                       data: (categories) {
-                        if (categories.isEmpty) {
-                          return const Text(
-                            'No hay categorías para este tipo todavía.',
-                            style: TextStyle(color: FinoraColors.textSecondary),
-                          );
-                        }
+                        // Siempre con el chip "+ Nueva" al final, incluso con
+                        // la lista vacia: es la via para crear la primera.
                         return Wrap(
                           spacing: FinoraTokens.s8,
                           runSpacing: FinoraTokens.s8,
                           children: [
+                            // GestureDetector externo: ChoiceChip no expone
+                            // onLongPress, y el detector no interfiere con el
+                            // tap del chip.
                             for (final c in categories)
-                              ChoiceChip(
-                                label: Text(c.name),
-                                avatar: Icon(
-                                  categoryIcons[c.icon] ?? Icons.category,
-                                  size: 18,
-                                  color: _selectedCategoryId == c.id
-                                      ? Colors.white
-                                      : Color(c.color),
-                                ),
-                                selected: _selectedCategoryId == c.id,
-                                selectedColor: Color(c.color),
-                                backgroundColor: FinoraColors.surface,
-                                showCheckmark: false,
-                                pressElevation: 0,
-                                shape: StadiumBorder(
-                                  side: BorderSide(
+                              GestureDetector(
+                                onLongPress: () => _showCategoryMenu(c),
+                                child: ChoiceChip(
+                                  label: Text(c.name),
+                                  avatar: Icon(
+                                    categoryIcons[c.icon] ?? Icons.category,
+                                    size: 18,
                                     color: _selectedCategoryId == c.id
-                                        ? Color(c.color)
-                                        : FinoraColors.border,
+                                        ? Colors.white
+                                        : Color(c.color),
+                                  ),
+                                  selected: _selectedCategoryId == c.id,
+                                  selectedColor: Color(c.color),
+                                  backgroundColor: FinoraColors.surface,
+                                  showCheckmark: false,
+                                  pressElevation: 0,
+                                  shape: StadiumBorder(
+                                    side: BorderSide(
+                                      color: _selectedCategoryId == c.id
+                                          ? Color(c.color)
+                                          : FinoraColors.border,
+                                    ),
+                                  ),
+                                  labelStyle: TextStyle(
+                                    fontWeight: FontWeight.w600,
+                                    color: _selectedCategoryId == c.id
+                                        ? Colors.white
+                                        : FinoraColors.textPrimary,
+                                  ),
+                                  onSelected: (_) => setState(
+                                    () => _selectedCategoryId = c.id,
                                   ),
                                 ),
-                                labelStyle: TextStyle(
-                                  fontWeight: FontWeight.w600,
-                                  color: _selectedCategoryId == c.id
-                                      ? Colors.white
-                                      : FinoraColors.textPrimary,
-                                ),
-                                onSelected: (_) =>
-                                    setState(() => _selectedCategoryId = c.id),
                               ),
+                            // Chip de accion para crear una categoria nueva
+                            // del `kind` actual.
+                            ActionChip(
+                              label: const Text('Nueva'),
+                              avatar: const Icon(
+                                Icons.add,
+                                size: 18,
+                                color: FinoraColors.primary,
+                              ),
+                              backgroundColor: FinoraColors.surface,
+                              shape: const StadiumBorder(
+                                side: BorderSide(color: FinoraColors.primary),
+                              ),
+                              labelStyle: const TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: FinoraColors.primary,
+                              ),
+                              onPressed: _createCategory,
+                            ),
                           ],
                         );
                       },
