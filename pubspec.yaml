@@ -84,17 +84,18 @@ flutter_launcher_icons:
   adaptive_icon_foreground: "assets/icon/icon_padded.png"
 
 # Configuracion de flutter_native_splash: splash screen nativo con fondo verde
-# de marca y un icono circular (plato blanco + logo) centrado, mostrado
-# mientras Flutter inicializa. El icono es assets/icon/splash_icon.png,
-# generado con tool/make_splash_icon.dart a partir de assets/brand/logo.png:
-# un circulo blanco solido con el logo encima, para que la mascara circular
-# de Android 12+ nunca corte los bordes duros del logo cuadrado.
+# de marca y el logo de inicio (assets/brand/finora_inicio.png) centrado,
+# directo sobre el verde y SIN plato blanco (mismo criterio que login/lock).
+# Para Android 12+ se usa assets/icon/splash_inicio_padded.png, generado con
+# tool/make_inicio_splash_icon.dart: el mismo logo sobre un lienzo
+# transparente 1152x1152 a ~544px, para que la mascara circular del splash
+# de Android 12+ no recorte las esquinas redondeadas del logo.
 flutter_native_splash:
   color: "#16A34A"
-  image: "assets/icon/splash_icon.png"
+  image: "assets/brand/finora_inicio.png"
   # Solo Android: el proyecto no mantiene el target iOS activo (ver
   # flutter_launcher_icons.ios: false) y no se quiere tocar ios/Runner.
   ios: false
   android_12:
     color: "#16A34A"
-    image: "assets/icon/splash_icon.png"
+    image: "assets/icon/splash_inicio_padded.png"
