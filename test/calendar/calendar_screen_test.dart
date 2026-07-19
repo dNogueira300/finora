@@ -99,14 +99,14 @@ void main() {
     expect(find.text(daysLabel(pagoDays)), findsOneWidget);
     expect(find.text(daysLabel(cierreDays)), findsOneWidget);
 
-    // Los puntos de color de cada fila (leading del ListTile dentro de su
-    // Card) coinciden con los del grid.
+    // Cada fila usa un squircle con el icono del tipo (Pago/Cierre) en su
+    // color propio, en lugar de un punto suelto.
     expect(
-      find.descendant(of: find.byType(Card), matching: find.byWidgetPredicate((w) => isDot(w, FinoraColors.expense))),
+      find.descendant(of: find.byType(Card), matching: find.byIcon(Icons.payments)),
       findsOneWidget,
     );
     expect(
-      find.descendant(of: find.byType(Card), matching: find.byWidgetPredicate((w) => isDot(w, FinoraColors.warning))),
+      find.descendant(of: find.byType(Card), matching: find.byIcon(Icons.event_note)),
       findsOneWidget,
     );
 
@@ -121,9 +121,11 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(
-      find.text('No tienes tarjetas de crédito con fechas de pago o\ncierre configuradas.'),
+      find.text('No tienes tarjetas de crédito con fechas de pago o cierre configuradas.'),
       findsOneWidget,
     );
+    // El estado vacio muestra un unico texto (sin salto manual) con su icono.
+    expect(find.byIcon(Icons.event_available), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 1));

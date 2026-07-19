@@ -4,11 +4,15 @@ import 'package:intl/intl.dart';
 
 import '../../core/dates.dart';
 import '../../core/finora_colors.dart';
+import '../../core/finora_tokens.dart';
+import '../../core/finora_widgets.dart';
 import '../../data/local/database.dart';
 import '../../data/sync/sync_providers.dart';
 import 'due_dates.dart';
 
-final _activeAccountsProvider = StreamProvider.autoDispose<List<Account>>((ref) {
+final _activeAccountsProvider = StreamProvider.autoDispose<List<Account>>((
+  ref,
+) {
   return ref.watch(databaseProvider).accountsDao.watchActive();
 });
 
@@ -41,7 +45,11 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
 
   void _changeMonth(int delta) {
     setState(() {
-      _displayedMonth = DateTime(_displayedMonth.year, _displayedMonth.month + delta, 1);
+      _displayedMonth = DateTime(
+        _displayedMonth.year,
+        _displayedMonth.month + delta,
+        1,
+      );
     });
   }
 
@@ -56,7 +64,9 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
       body: SafeArea(
         child: accountsAsync.when(
           data: (accounts) {
-            final creditAccounts = accounts.where((a) => a.type == 'credit').toList();
+            final creditAccounts = accounts
+                .where((a) => a.type == 'credit')
+                .toList();
             final upcoming = _upcomingEntries(creditAccounts, todayDate);
             return ListView(
               padding: const EdgeInsets.all(16),
@@ -72,24 +82,36 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                   accounts: creditAccounts,
                   today: todayDate,
                 ),
-                const SizedBox(height: 8),
+                const SizedBox(height: FinoraTokens.s8),
                 const _Legend(),
-                const SizedBox(height: 24),
-                Text('Próximos vencimientos', style: Theme.of(context).textTheme.titleMedium),
-                const SizedBox(height: 8),
+                const SizedBox(height: FinoraTokens.s24),
+                const SectionHeader('Próximos vencimientos'),
+                const SizedBox(height: FinoraTokens.s8),
                 if (upcoming.isEmpty)
                   const Padding(
-                    padding: EdgeInsets.symmetric(vertical: 32),
+                    padding: EdgeInsets.symmetric(vertical: FinoraTokens.s32),
                     child: Center(
-                      child: Text(
-                        'No tienes tarjetas de crédito con fechas de pago o\ncierre configuradas.',
-                        textAlign: TextAlign.center,
-                        style: TextStyle(color: FinoraColors.textSecondary),
+                      child: Column(
+                        mainAxisSize: MainAxisSize.min,
+                        children: [
+                          Icon(
+                            Icons.event_available,
+                            size: 48,
+                            color: FinoraColors.textSecondary,
+                          ),
+                          SizedBox(height: FinoraTokens.s12),
+                          Text(
+                            'No tienes tarjetas de crédito con fechas de pago o cierre configuradas.',
+                            textAlign: TextAlign.center,
+                            style: TextStyle(color: FinoraColors.textSecondary),
+                          ),
+                        ],
                       ),
                     ),
                   )
                 else
-                  for (final entry in upcoming) _DueTile(entry: entry, today: todayDate),
+                  for (final entry in upcoming)
+                    _DueTile(entry: entry, today: todayDate),
               ],
             );
           },
@@ -112,7 +134,11 @@ List<_DueEntry> _upcomingEntries(List<Account> accounts, DateTime today) {
     }
     final statementDay = a.statementDay;
     if (statementDay != null) {
-      entries.add((account: a, kind: 'cierre', date: nextDueDate(statementDay, today)));
+      entries.add((
+        account: a,
+        kind: 'cierre',
+        date: nextDueDate(statementDay, today),
+      ));
     }
   }
   entries.sort((a, b) => a.date.compareTo(b.date));
@@ -120,7 +146,11 @@ List<_DueEntry> _upcomingEntries(List<Account> accounts, DateTime today) {
 }
 
 class _MonthHeader extends StatelessWidget {
-  const _MonthHeader({required this.month, required this.onPrevious, required this.onNext});
+  const _MonthHeader({
+    required this.month,
+    required this.onPrevious,
+    required this.onNext,
+  });
   final DateTime month;
   final VoidCallback onPrevious;
   final VoidCallback onNext;
@@ -128,22 +158,71 @@ class _MonthHeader extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final label = DateFormat('MMMM yyyy', 'es').format(month);
-    final capitalized = label.isEmpty ? label : label[0].toUpperCase() + label.substring(1);
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        IconButton(
-          icon: const Icon(Icons.chevron_left),
-          tooltip: 'Mes anterior',
-          onPressed: onPrevious,
-        ),
-        Text(capitalized, style: Theme.of(context).textTheme.titleMedium),
-        IconButton(
-          icon: const Icon(Icons.chevron_right),
-          tooltip: 'Mes siguiente',
-          onPressed: onNext,
-        ),
-      ],
+    final capitalized = label.isEmpty
+        ? label
+        : label[0].toUpperCase() + label.substring(1);
+    return Container(
+      decoration: BoxDecoration(
+        color: FinoraColors.surface,
+        borderRadius: BorderRadius.circular(FinoraTokens.rPill),
+        boxShadow: FinoraTokens.shadowSoft,
+      ),
+      padding: const EdgeInsets.symmetric(
+        horizontal: FinoraTokens.s8,
+        vertical: FinoraTokens.s4,
+      ),
+      child: Row(
+        children: [
+          _ChevronButton(
+            icon: Icons.chevron_left,
+            tooltip: 'Mes anterior',
+            onPressed: onPrevious,
+          ),
+          Expanded(
+            child: Text(
+              capitalized,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: FinoraColors.textPrimary,
+              ),
+            ),
+          ),
+          _ChevronButton(
+            icon: Icons.chevron_right,
+            tooltip: 'Mes siguiente',
+            onPressed: onNext,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Boton de navegacion de mes: chevron circular con ripple sobre un fondo
+/// suave, dentro del card pill de [_MonthHeader].
+class _ChevronButton extends StatelessWidget {
+  const _ChevronButton({
+    required this.icon,
+    required this.tooltip,
+    required this.onPressed,
+  });
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: Icon(icon),
+      tooltip: tooltip,
+      onPressed: onPressed,
+      color: FinoraColors.textPrimary,
+      style: IconButton.styleFrom(
+        backgroundColor: FinoraColors.background,
+        shape: const CircleBorder(),
+      ),
     );
   }
 }
@@ -154,7 +233,11 @@ class _MonthHeader extends StatelessWidget {
 /// ultimo dia del mes si `paymentDueDay`/`statementDay` no existen en un mes
 /// corto (p. ej. dia 31 en un mes de 30 dias).
 class _MonthGrid extends StatelessWidget {
-  const _MonthGrid({required this.month, required this.accounts, required this.today});
+  const _MonthGrid({
+    required this.month,
+    required this.accounts,
+    required this.today,
+  });
   final DateTime month;
   final List<Account> accounts;
   final DateTime today;
@@ -162,7 +245,11 @@ class _MonthGrid extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final lastDay = DateTime(month.year, month.month + 1, 0).day;
-    final firstWeekday = DateTime(month.year, month.month, 1).weekday; // 1=lunes..7=domingo
+    final firstWeekday = DateTime(
+      month.year,
+      month.month,
+      1,
+    ).weekday; // 1=lunes..7=domingo
     final leadingBlanks = firstWeekday - 1;
 
     final paymentDays = <int>{};
@@ -176,7 +263,8 @@ class _MonthGrid extends StatelessWidget {
       }
     }
 
-    final isCurrentMonth = today.year == month.year && today.month == month.month;
+    final isCurrentMonth =
+        today.year == month.year && today.month == month.month;
 
     return Column(
       children: [
@@ -187,7 +275,10 @@ class _MonthGrid extends StatelessWidget {
                 child: Center(
                   child: Text(
                     label,
-                    style: const TextStyle(fontWeight: FontWeight.w600, color: FinoraColors.textSecondary),
+                    style: const TextStyle(
+                      fontWeight: FontWeight.w600,
+                      color: FinoraColors.textSecondary,
+                    ),
                   ),
                 ),
               ),
@@ -197,8 +288,10 @@ class _MonthGrid extends StatelessWidget {
         GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
-          gridDelegate:
-              const SliverGridDelegateWithFixedCrossAxisCount(crossAxisCount: 7, mainAxisExtent: 44),
+          gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
+            crossAxisCount: 7,
+            mainAxisExtent: 44,
+          ),
           itemCount: leadingBlanks + lastDay,
           itemBuilder: (context, index) {
             if (index < leadingBlanks) return const SizedBox.shrink();
@@ -206,24 +299,48 @@ class _MonthGrid extends StatelessWidget {
             final isToday = isCurrentMonth && day == today.day;
             final hasPayment = paymentDays.contains(day);
             final hasStatement = statementDays.contains(day);
-            return Container(
-              margin: const EdgeInsets.all(2),
-              decoration: BoxDecoration(
-                shape: BoxShape.circle,
-                border: isToday ? Border.all(color: FinoraColors.primary, width: 2) : null,
-              ),
+            return Padding(
+              padding: const EdgeInsets.all(2),
               child: Column(
                 mainAxisAlignment: MainAxisAlignment.center,
                 children: [
-                  Text('$day'),
-                  if (hasPayment || hasStatement)
-                    Row(
-                      mainAxisSize: MainAxisSize.min,
-                      children: [
-                        if (hasPayment) const _Dot(color: FinoraColors.expense),
-                        if (hasStatement) const _Dot(color: FinoraColors.warning),
-                      ],
+                  Container(
+                    width: 28,
+                    height: 28,
+                    alignment: Alignment.center,
+                    decoration: isToday
+                        ? const BoxDecoration(
+                            color: FinoraColors.primary,
+                            shape: BoxShape.circle,
+                          )
+                        : null,
+                    child: Text(
+                      '$day',
+                      style: TextStyle(
+                        color: isToday
+                            ? Colors.white
+                            : FinoraColors.textPrimary,
+                        fontWeight: isToday ? FontWeight.w700 : FontWeight.w400,
+                      ),
                     ),
+                  ),
+                  const SizedBox(height: 2),
+                  // Reserva fija de 6px para que las celdas con y sin
+                  // vencimiento mantengan la misma altura y alineacion.
+                  SizedBox(
+                    height: 6,
+                    child: (hasPayment || hasStatement)
+                        ? Row(
+                            mainAxisSize: MainAxisSize.min,
+                            children: [
+                              if (hasPayment)
+                                const _Dot(color: FinoraColors.expense),
+                              if (hasStatement)
+                                const _Dot(color: FinoraColors.warning),
+                            ],
+                          )
+                        : null,
+                  ),
                 ],
               ),
             );
@@ -241,8 +358,8 @@ class _Dot extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return Container(
-      width: 5,
-      height: 5,
+      width: 6,
+      height: 6,
       margin: const EdgeInsets.symmetric(horizontal: 1),
       decoration: BoxDecoration(color: color, shape: BoxShape.circle),
     );
@@ -274,9 +391,19 @@ class _LegendDot extends StatelessWidget {
     return Row(
       mainAxisSize: MainAxisSize.min,
       children: [
-        Container(width: 8, height: 8, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+        Container(
+          width: 8,
+          height: 8,
+          decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+        ),
         const SizedBox(width: 6),
-        Text(label, style: const TextStyle(color: FinoraColors.textSecondary, fontSize: 12)),
+        Text(
+          label,
+          style: const TextStyle(
+            color: FinoraColors.textSecondary,
+            fontSize: 12,
+          ),
+        ),
       ],
     );
   }
@@ -293,22 +420,37 @@ class _DueTile extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final days = entry.date.difference(today).inDays;
-    final label = days <= 0 ? 'Vence hoy' : 'Vence en $days día${days == 1 ? '' : 's'}';
+    final label = days <= 0
+        ? 'Vence hoy'
+        : 'Vence en $days día${days == 1 ? '' : 's'}';
     final isPago = entry.kind == 'pago';
-    final dotColor = isPago ? FinoraColors.expense : FinoraColors.warning;
+    final color = isPago ? FinoraColors.expense : FinoraColors.warning;
+    final icon = isPago ? Icons.payments : Icons.event_note;
     final kindLabel = isPago ? 'Pago' : 'Cierre';
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(20)),
+      margin: const EdgeInsets.only(bottom: FinoraTokens.s12),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(FinoraTokens.rCard),
+      ),
       child: ListTile(
         leading: Container(
-          width: 12,
-          height: 12,
-          decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
+          width: 40,
+          height: 40,
+          alignment: Alignment.center,
+          decoration: BoxDecoration(
+            color: color.withValues(alpha: 0.15),
+            borderRadius: BorderRadius.circular(FinoraTokens.rInput),
+          ),
+          child: Icon(icon, color: color, size: 20),
         ),
         title: Text(entry.account.name),
-        subtitle: Text('$kindLabel · ${DateFormat('d MMMM', 'es').format(entry.date)}'),
-        trailing: Text(label, style: const TextStyle(fontWeight: FontWeight.w600)),
+        subtitle: Text(
+          '$kindLabel · ${DateFormat('d MMMM', 'es').format(entry.date)}',
+        ),
+        trailing: Text(
+          label,
+          style: const TextStyle(fontWeight: FontWeight.w600),
+        ),
       ),
     );
   }

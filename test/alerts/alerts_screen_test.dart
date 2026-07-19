@@ -6,6 +6,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:flutter_test/flutter_test.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
+import 'package:finora/core/finora_colors.dart';
 import 'package:finora/data/local/database.dart';
 import 'package:finora/data/sync/sync_providers.dart';
 import 'package:finora/features/alerts/alerts_dao_ext.dart';
@@ -92,7 +93,8 @@ void main() {
       await tester.pumpWidget(buildApp());
       await tester.pumpAndSettle();
 
-      expect(find.text('Hoy'), findsOneWidget);
+      // El encabezado del grupo se muestra en mayusculas.
+      expect(find.text('HOY'), findsOneWidget);
       expect(find.text('Límite de gasto alcanzado'), findsOneWidget);
       expect(find.text('Superaste tu límite mensual'), findsOneWidget);
       expect(find.text('Vencimiento de pago'), findsOneWidget);
@@ -102,6 +104,13 @@ void main() {
       // "vencimiento" (ver `_alertIcon` en `alerts_screen.dart`).
       expect(find.byIcon(Icons.notifications), findsOneWidget);
       expect(find.byIcon(Icons.credit_card), findsOneWidget);
+
+      // Ambas alertas estan sin leer: cada fila muestra un dot primary.
+      bool isUnreadDot(Widget w) =>
+          w is Container &&
+          (w.decoration as BoxDecoration?)?.color == FinoraColors.primary &&
+          (w.decoration as BoxDecoration?)?.shape == BoxShape.circle;
+      expect(find.byWidgetPredicate(isUnreadDot), findsNWidgets(2));
 
       await drainTimers(tester);
     });

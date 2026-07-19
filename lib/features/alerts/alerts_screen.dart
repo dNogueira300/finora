@@ -4,6 +4,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/dates.dart';
 import '../../core/finora_colors.dart';
+import '../../core/finora_tokens.dart';
 import '../../data/local/database.dart';
 import '../../data/sync/sync_providers.dart';
 import 'alerts_dao_ext.dart';
@@ -97,12 +98,23 @@ class AlertsScreen extends ConsumerWidget {
             if (alerts.isEmpty) return const _EmptyState();
             final groups = _groupByDay(alerts);
             return ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(FinoraTokens.s16),
               children: [
                 for (final entry in groups.entries) ...[
                   Padding(
-                    padding: const EdgeInsets.only(bottom: 8, top: 8),
-                    child: Text(entry.key, style: Theme.of(context).textTheme.titleMedium),
+                    padding: const EdgeInsets.only(
+                      bottom: FinoraTokens.s8,
+                      top: FinoraTokens.s8,
+                    ),
+                    child: Text(
+                      entry.key.toUpperCase(),
+                      style: const TextStyle(
+                        fontSize: 12,
+                        fontWeight: FontWeight.w700,
+                        color: FinoraColors.textSecondary,
+                        letterSpacing: 0.8,
+                      ),
+                    ),
                   ),
                   for (final alert in entry.value) _AlertTile(alert: alert),
                 ],
@@ -124,11 +136,24 @@ class _EmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Text(
-          'Sin alertas por ahora',
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: FinoraColors.textSecondary),
+        padding: const EdgeInsets.all(FinoraTokens.s32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.notifications_none,
+              size: 48,
+              color: FinoraColors.textSecondary,
+            ),
+            const SizedBox(height: FinoraTokens.s12),
+            Text(
+              'Sin alertas por ahora',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: FinoraColors.textSecondary,
+              ),
+            ),
+          ],
         ),
       ),
     );
@@ -161,33 +186,56 @@ class _AlertTile extends ConsumerWidget {
         child: const Icon(Icons.delete_outline, color: Colors.white),
       ),
       onDismissed: (_) => ref.read(databaseProvider).deleteAlert(alert.id),
-      child: Card(
-        margin: const EdgeInsets.only(bottom: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-        child: ListTile(
-          leading: CircleAvatar(
-            backgroundColor: color,
-            child: Icon(icon, color: Colors.white, size: 18),
+      child: Opacity(
+        // Las alertas leidas quedan mas apagadas (0.7) que las no leidas.
+        opacity: alert.isRead ? 0.7 : 1.0,
+        child: Card(
+          margin: const EdgeInsets.only(bottom: FinoraTokens.s12),
+          shape: RoundedRectangleBorder(
+            borderRadius: BorderRadius.circular(FinoraTokens.rInput),
           ),
-          title: Text(
-            alert.title,
-            style: TextStyle(fontWeight: alert.isRead ? FontWeight.normal : FontWeight.bold),
-          ),
-          subtitle: Text(alert.body),
-          trailing: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              Text(time, style: const TextStyle(color: FinoraColors.textSecondary, fontSize: 12)),
-              if (!alert.isRead) ...[
-                const SizedBox(height: 4),
-                Container(
-                  width: 8,
-                  height: 8,
-                  decoration: const BoxDecoration(color: FinoraColors.primary, shape: BoxShape.circle),
+          child: ListTile(
+            leading: Container(
+              width: 40,
+              height: 40,
+              alignment: Alignment.center,
+              decoration: BoxDecoration(
+                color: color.withValues(alpha: 0.15),
+                borderRadius: BorderRadius.circular(FinoraTokens.rInput),
+              ),
+              child: Icon(icon, color: color, size: 20),
+            ),
+            title: Text(
+              alert.title,
+              style: TextStyle(
+                fontWeight: alert.isRead ? FontWeight.normal : FontWeight.bold,
+              ),
+            ),
+            subtitle: Text(alert.body),
+            trailing: Column(
+              mainAxisSize: MainAxisSize.min,
+              crossAxisAlignment: CrossAxisAlignment.end,
+              children: [
+                Text(
+                  time,
+                  style: const TextStyle(
+                    color: FinoraColors.textSecondary,
+                    fontSize: 12,
+                  ),
                 ),
+                if (!alert.isRead) ...[
+                  const SizedBox(height: 4),
+                  Container(
+                    width: 8,
+                    height: 8,
+                    decoration: const BoxDecoration(
+                      color: FinoraColors.primary,
+                      shape: BoxShape.circle,
+                    ),
+                  ),
+                ],
               ],
-            ],
+            ),
           ),
         ),
       ),
