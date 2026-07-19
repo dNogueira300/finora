@@ -470,18 +470,41 @@ class _GoalsCard extends StatelessWidget {
   }
 }
 
+/// Pill compacta (blanco20) con un dot de estado y el icono de sync en
+/// blanco: sobre el header con degradado verde ningun color de estado (ni
+/// siquiera `FinoraColors.income`) tiene contraste suficiente por si solo
+/// (ver `_SyncStatusChip` en `settings_screen.dart`, mismo tratamiento
+/// adaptado a este contexto compacto de cabecera).
 class _SyncIndicator extends StatelessWidget {
   const _SyncIndicator({required this.status});
   final SyncStatus status;
 
   @override
   Widget build(BuildContext context) {
-    final (icon, color) = switch (status) {
+    final (icon, dotColor) = switch (status) {
       SyncStatus.idle => (Icons.cloud_done, FinoraColors.income),
-      SyncStatus.syncing => (Icons.sync, FinoraColors.secondary),
-      SyncStatus.offline => (Icons.cloud_off, FinoraColors.textSecondary),
+      SyncStatus.syncing => (Icons.sync, FinoraColors.warning),
+      SyncStatus.offline => (Icons.cloud_off, FinoraColors.neutral),
       SyncStatus.error => (Icons.cloud_off, FinoraColors.expense),
     };
-    return Icon(icon, color: color);
+    return Container(
+      padding: const EdgeInsets.symmetric(horizontal: FinoraTokens.s8, vertical: 4),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(FinoraTokens.rPill),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: FinoraTokens.s4),
+          Icon(icon, color: Colors.white, size: 18),
+        ],
+      ),
+    );
   }
 }

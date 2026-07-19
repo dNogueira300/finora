@@ -53,7 +53,26 @@ void main() {
     // Supabase.instance no esta inicializado en el entorno de test, asi que
     // currentUser es null y el saludo cae al fallback sin nombre.
     expect(find.text('Hola'), findsOneWidget);
-    expect(find.byIcon(Icons.cloud_done), findsOneWidget); // syncStatusProvider arranca en idle
+    // syncStatusProvider arranca en idle: pill `_SyncIndicator` (ver
+    // `dashboard_screen.dart`) con icono en blanco (legible sobre el header
+    // verde) + dot de estado en FinoraColors.income.
+    expect(find.byIcon(Icons.cloud_done), findsOneWidget);
+    final syncIcon = tester.widget<Icon>(find.byIcon(Icons.cloud_done));
+    expect(syncIcon.color, Colors.white);
+    // El dot de estado es el `Container` circular hermano del icono, dentro
+    // de la misma `Row` del pill `_SyncIndicator`.
+    final syncIndicatorRow = find.ancestor(
+      of: find.byIcon(Icons.cloud_done),
+      matching: find.byType(Row),
+    ).first;
+    final syncDot = tester.widget<Container>(find.descendant(
+      of: syncIndicatorRow,
+      matching: find.byWidgetPredicate((w) =>
+          w is Container &&
+          w.decoration is BoxDecoration &&
+          (w.decoration! as BoxDecoration).shape == BoxShape.circle),
+    ));
+    expect((syncDot.decoration! as BoxDecoration).color, FinoraColors.income);
     expect(find.text('Saldo total'), findsOneWidget); // label del header de marca
     expect(find.text('Registra tu primer gasto con el botón +'), findsOneWidget);
     expect(find.text('S/ 0.00'), findsWidgets);
