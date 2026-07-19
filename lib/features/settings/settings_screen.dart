@@ -12,6 +12,7 @@ import '../../data/local/database.dart';
 import '../../data/sync/sync_providers.dart';
 import '../../services/notifications_service.dart';
 import '../auth/auth_providers.dart';
+import '../auth/auth_repository.dart';
 import '../auth/lock_screen.dart';
 
 /// Id del usuario autenticado, o null si no hay sesion. Mismo criterio que
@@ -61,7 +62,8 @@ final currentUserAliasProvider = Provider<String?>((ref) {
 /// `authRepositoryProvider`; el redirect a `/login` lo maneja el router
 /// (Task 10), esta pantalla no navega manualmente.
 final signOutProvider = Provider<Future<void> Function()>(
-  (ref) => () => ref.read(authRepositoryProvider).signOut(),
+  (ref) =>
+      () => ref.read(authRepositoryProvider).signOut(),
 );
 
 /// Misma indireccion que [signOutProvider] pero para `SyncCoordinator.trigger`:
@@ -70,7 +72,8 @@ final signOutProvider = Provider<Future<void> Function()>(
 /// esta pantalla sobreescriben este provider en vez de forzar esa
 /// construccion.
 final syncTriggerProvider = Provider<Future<void> Function()>(
-  (ref) => () => ref.read(syncCoordinatorProvider).trigger(),
+  (ref) =>
+      () => ref.read(syncCoordinatorProvider).trigger(),
 );
 
 const _minAlertDays = 0;
@@ -124,16 +127,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Future<void> _load() async {
     final available = await ref.read(biometricServiceProvider).isAvailable();
     final userId = ref.read(currentUserIdProvider);
-    final row =
-        userId == null ? null : await ref.read(databaseProvider).settingsDao.get(userId);
+    final row = userId == null
+        ? null
+        : await ref.read(databaseProvider).settingsDao.get(userId);
     if (!mounted) return;
     setState(() {
       _biometricAvailable = available;
       _biometricEnabled = row?.biometricEnabled ?? false;
       _monthlyLimitCents = row?.monthlyLimitCents;
       _alertDaysBeforeDue = row?.alertDaysBeforeDue ?? 3;
-      _limitCtrl.text =
-          _monthlyLimitCents == null ? '' : (_monthlyLimitCents! / 100).toStringAsFixed(2);
+      _limitCtrl.text = _monthlyLimitCents == null
+          ? ''
+          : (_monthlyLimitCents! / 100).toStringAsFixed(2);
       _loading = false;
     });
   }
@@ -144,13 +149,18 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   Future<void> _persist() async {
     final userId = ref.read(currentUserIdProvider);
     if (userId == null) return;
-    await ref.read(databaseProvider).settingsDao.upsert(UserSettingsCompanion(
-          id: Value(userId),
-          monthlyLimitCents: Value(_monthlyLimitCents),
-          alertDaysBeforeDue: Value(_alertDaysBeforeDue),
-          biometricEnabled: Value(_biometricEnabled),
-          updatedAt: Value(DateTime.now().toUtc()),
-        ));
+    await ref
+        .read(databaseProvider)
+        .settingsDao
+        .upsert(
+          UserSettingsCompanion(
+            id: Value(userId),
+            monthlyLimitCents: Value(_monthlyLimitCents),
+            alertDaysBeforeDue: Value(_alertDaysBeforeDue),
+            biometricEnabled: Value(_biometricEnabled),
+            updatedAt: Value(DateTime.now().toUtc()),
+          ),
+        );
   }
 
   void _commitLimit() {
@@ -163,8 +173,9 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
     final cents = parseMoney(text);
     if (cents == null || cents < 0) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Monto inválido')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Monto inválido')));
       return;
     }
     if (cents == _monthlyLimitCents) return;
@@ -182,7 +193,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   }
 
   void _changeAlertDays(int delta) {
-    final next = (_alertDaysBeforeDue + delta).clamp(_minAlertDays, _maxAlertDays);
+    final next = (_alertDaysBeforeDue + delta).clamp(
+      _minAlertDays,
+      _maxAlertDays,
+    );
     if (next == _alertDaysBeforeDue) return;
     setState(() => _alertDaysBeforeDue = next);
     _persist();
@@ -196,7 +210,24 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     // offline o el sync tarda. Best-effort (su propio try/catch): un fallo
     // no debe afectar el guardado del valor, que ya ocurrio arriba.
     rescheduleCardRemindersFromDb(
-        ref.read(databaseProvider), ref.read(notificationsServiceProvider));
+      ref.read(databaseProvider),
+      ref.read(notificationsServiceProvider),
+    );
+  }
+
+  /// Abre el dialogo de cambio de contraseña (nueva + confirmacion). El
+  /// cambio no necesita correo: la sesion vigente autoriza `updateUser`.
+  Future<void> _changePassword() async {
+    final ok = await showDialog<bool>(
+      context: context,
+      builder: (_) =>
+          _ChangePasswordDialog(auth: ref.read(authRepositoryProvider)),
+    );
+    if (ok == true && mounted) {
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Contraseña actualizada')));
+    }
   }
 
   /// Abre el dialogo de edicion del alias y lo persiste en los metadatos de
@@ -215,8 +246,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
       await ref.read(authRepositoryProvider).updateAlias(result.trim());
     } on Object {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('No se pudo guardar el alias. Revisa tu conexión.')));
+        ScaffoldMessenger.of(context).showSnackBar(
+          const SnackBar(
+            content: Text('No se pudo guardar el alias. Revisa tu conexión.'),
+          ),
+        );
       }
     }
   }
@@ -234,7 +268,10 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           ),
           TextButton(
             onPressed: () => Navigator.of(ctx).pop(true),
-            child: const Text('Cerrar sesión', style: TextStyle(color: FinoraColors.expense)),
+            child: const Text(
+              'Cerrar sesión',
+              style: TextStyle(color: FinoraColors.expense),
+            ),
           ),
         ],
       ),
@@ -294,108 +331,147 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.stretch,
                         children: [
-                          if (_biometricAvailable) ...[
-                            const _GroupTitle('Seguridad'),
-                            _GroupCard(children: [
-                              SwitchListTile(
-                                secondary: const _TileIcon(
-                                  Icons.fingerprint,
+                          const _GroupTitle('Seguridad'),
+                          _GroupCard(
+                            children: [
+                              if (_biometricAvailable)
+                                SwitchListTile(
+                                  secondary: const _TileIcon(
+                                    Icons.fingerprint,
+                                    FinoraColors.primary,
+                                  ),
+                                  title: const Text('Desbloqueo con huella'),
+                                  value: _biometricEnabled,
+                                  onChanged: _onBiometricChanged,
+                                ),
+                              ListTile(
+                                leading: const _TileIcon(
+                                  Icons.lock_outline,
                                   FinoraColors.primary,
                                 ),
-                                title: const Text('Desbloqueo con huella'),
-                                value: _biometricEnabled,
-                                onChanged: _onBiometricChanged,
+                                title: const Text('Cambiar contraseña'),
+                                trailing: const Icon(Icons.chevron_right),
+                                onTap: _changePassword,
                               ),
-                            ]),
-                            const SizedBox(height: FinoraTokens.s24),
-                          ],
+                            ],
+                          ),
+                          const SizedBox(height: FinoraTokens.s24),
                           const _GroupTitle('Alertas'),
-                          _GroupCard(children: [
-                            Padding(
-                              padding: const EdgeInsets.fromLTRB(
-                                FinoraTokens.s16,
-                                FinoraTokens.s16,
-                                FinoraTokens.s16,
-                                FinoraTokens.s8,
-                              ),
-                              child: TextField(
-                                controller: _limitCtrl,
-                                focusNode: _limitFocus,
-                                keyboardType:
-                                    const TextInputType.numberWithOptions(decimal: true),
-                                onSubmitted: (_) => _commitLimit(),
-                                decoration: const InputDecoration(
-                                  labelText: 'Límite de gasto mensual',
-                                  helperText: 'Déjalo vacío para no tener límite',
-                                  prefixText: 'S/ ',
-                                  border: OutlineInputBorder(),
+                          _GroupCard(
+                            children: [
+                              Padding(
+                                padding: const EdgeInsets.fromLTRB(
+                                  FinoraTokens.s16,
+                                  FinoraTokens.s16,
+                                  FinoraTokens.s16,
+                                  FinoraTokens.s8,
+                                ),
+                                child: TextField(
+                                  controller: _limitCtrl,
+                                  focusNode: _limitFocus,
+                                  keyboardType:
+                                      const TextInputType.numberWithOptions(
+                                        decimal: true,
+                                      ),
+                                  onSubmitted: (_) => _commitLimit(),
+                                  decoration: const InputDecoration(
+                                    labelText: 'Límite de gasto mensual',
+                                    helperText:
+                                        'Déjalo vacío para no tener límite',
+                                    prefixText: 'S/ ',
+                                    border: OutlineInputBorder(),
+                                  ),
                                 ),
                               ),
-                            ),
-                            ListTile(
-                              leading: const _TileIcon(
-                                Icons.notifications_active_outlined,
-                                FinoraColors.warning,
+                              ListTile(
+                                leading: const _TileIcon(
+                                  Icons.notifications_active_outlined,
+                                  FinoraColors.warning,
+                                ),
+                                title: const Text(
+                                  'Avisarme antes del vencimiento',
+                                ),
+                                subtitle: Text(
+                                  '$_alertDaysBeforeDue días antes',
+                                ),
+                                trailing: Row(
+                                  mainAxisSize: MainAxisSize.min,
+                                  children: [
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.remove_circle_outline,
+                                      ),
+                                      tooltip: 'Menos días',
+                                      onPressed:
+                                          _alertDaysBeforeDue > _minAlertDays
+                                          ? () => _changeAlertDays(-1)
+                                          : null,
+                                    ),
+                                    Text('$_alertDaysBeforeDue'),
+                                    IconButton(
+                                      icon: const Icon(
+                                        Icons.add_circle_outline,
+                                      ),
+                                      tooltip: 'Más días',
+                                      onPressed:
+                                          _alertDaysBeforeDue < _maxAlertDays
+                                          ? () => _changeAlertDays(1)
+                                          : null,
+                                    ),
+                                  ],
+                                ),
                               ),
-                              title: const Text('Avisarme antes del vencimiento'),
-                              subtitle: Text('$_alertDaysBeforeDue días antes'),
-                              trailing: Row(
-                                mainAxisSize: MainAxisSize.min,
-                                children: [
-                                  IconButton(
-                                    icon: const Icon(Icons.remove_circle_outline),
-                                    tooltip: 'Menos días',
-                                    onPressed: _alertDaysBeforeDue > _minAlertDays
-                                        ? () => _changeAlertDays(-1)
-                                        : null,
-                                  ),
-                                  Text('$_alertDaysBeforeDue'),
-                                  IconButton(
-                                    icon: const Icon(Icons.add_circle_outline),
-                                    tooltip: 'Más días',
-                                    onPressed: _alertDaysBeforeDue < _maxAlertDays
-                                        ? () => _changeAlertDays(1)
-                                        : null,
-                                  ),
-                                ],
-                              ),
-                            ),
-                          ]),
+                            ],
+                          ),
                           const SizedBox(height: FinoraTokens.s24),
                           const _GroupTitle('Datos'),
-                          _GroupCard(children: [
-                            ListTile(
-                              leading: const _TileIcon(Icons.sync, FinoraColors.savings),
-                              title: const Text('Sincronizar ahora'),
-                              onTap: () => ref.read(syncTriggerProvider)(),
-                            ),
-                            ListTile(
-                              leading:
-                                  const _TileIcon(Icons.savings_rounded, FinoraColors.savings),
-                              title: const Text('Metas de ahorro'),
-                              trailing: const Icon(Icons.chevron_right),
-                              onTap: () => context.push('/goals'),
-                            ),
-                            ListTile(
-                              leading: const _TileIcon(
-                                Icons.calendar_today_outlined,
-                                FinoraColors.savings,
+                          _GroupCard(
+                            children: [
+                              ListTile(
+                                leading: const _TileIcon(
+                                  Icons.sync,
+                                  FinoraColors.savings,
+                                ),
+                                title: const Text('Sincronizar ahora'),
+                                onTap: () => ref.read(syncTriggerProvider)(),
                               ),
-                              title: const Text('Calendario'),
-                              trailing: const Icon(Icons.chevron_right),
-                              onTap: () => context.push('/calendar'),
-                            ),
-                          ]),
+                              ListTile(
+                                leading: const _TileIcon(
+                                  Icons.savings_rounded,
+                                  FinoraColors.savings,
+                                ),
+                                title: const Text('Metas de ahorro'),
+                                trailing: const Icon(Icons.chevron_right),
+                                onTap: () => context.push('/goals'),
+                              ),
+                              ListTile(
+                                leading: const _TileIcon(
+                                  Icons.calendar_today_outlined,
+                                  FinoraColors.savings,
+                                ),
+                                title: const Text('Calendario'),
+                                trailing: const Icon(Icons.chevron_right),
+                                onTap: () => context.push('/calendar'),
+                              ),
+                            ],
+                          ),
                           const SizedBox(height: FinoraTokens.s24),
                           const _GroupTitle('Sesión'),
-                          _GroupCard(children: [
-                            ListTile(
-                              leading: const _TileIcon(Icons.logout, FinoraColors.expense),
-                              title: const Text('Cerrar sesión',
-                                  style: TextStyle(color: FinoraColors.expense)),
-                              onTap: _confirmSignOut,
-                            ),
-                          ]),
+                          _GroupCard(
+                            children: [
+                              ListTile(
+                                leading: const _TileIcon(
+                                  Icons.logout,
+                                  FinoraColors.expense,
+                                ),
+                                title: const Text(
+                                  'Cerrar sesión',
+                                  style: TextStyle(color: FinoraColors.expense),
+                                ),
+                                onTap: _confirmSignOut,
+                              ),
+                            ],
+                          ),
                         ],
                       ),
                     ),
@@ -448,7 +524,9 @@ class _GroupCard extends StatelessWidget {
     return Card(
       margin: EdgeInsets.zero,
       clipBehavior: Clip.antiAlias,
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(FinoraTokens.rCard)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(FinoraTokens.rCard),
+      ),
       child: Column(children: rows),
     );
   }
@@ -467,7 +545,10 @@ class _TileIcon extends StatelessWidget {
       height: 36,
       alignment: Alignment.center,
       decoration: BoxDecoration(
-        color: Color.alphaBlend(color.withValues(alpha: 0.15), FinoraColors.surface),
+        color: Color.alphaBlend(
+          color.withValues(alpha: 0.15),
+          FinoraColors.surface,
+        ),
         borderRadius: BorderRadius.circular(FinoraTokens.rInput),
       ),
       child: Icon(icon, color: color, size: 20),
@@ -496,8 +577,9 @@ class _Header extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final display = (alias != null && alias!.isNotEmpty) ? alias! : email;
-    final initial =
-        (display != null && display.isNotEmpty) ? display[0].toUpperCase() : '?';
+    final initial = (display != null && display.isNotEmpty)
+        ? display[0].toUpperCase()
+        : '?';
     return Row(
       children: [
         CircleAvatar(
@@ -531,8 +613,11 @@ class _Header extends StatelessWidget {
                     ),
                   ),
                   IconButton(
-                    icon: const Icon(Icons.edit_outlined,
-                        color: Colors.white70, size: 18),
+                    icon: const Icon(
+                      Icons.edit_outlined,
+                      color: Colors.white70,
+                      size: 18,
+                    ),
                     tooltip: 'Editar alias',
                     visualDensity: VisualDensity.compact,
                     onPressed: onEditAlias,
@@ -549,6 +634,127 @@ class _Header extends StatelessWidget {
               _SyncStatusChip(status: status, onRetry: onRetry),
             ],
           ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Dialogo "Cambiar contraseña": nueva contraseña + confirmacion (ambas con
+/// ojito), valida minimo 6 caracteres y coincidencia, y llama a
+/// [AuthRepository.updatePassword]. `StatefulWidget` propio para que los
+/// controllers vivan y mueran con el dialogo (misma leccion que `_NoteDialog`
+/// en `add_transaction_screen.dart`). Hace pop con `true` solo si el cambio
+/// se aplico.
+class _ChangePasswordDialog extends StatefulWidget {
+  const _ChangePasswordDialog({required this.auth});
+  final AuthRepository auth;
+
+  @override
+  State<_ChangePasswordDialog> createState() => _ChangePasswordDialogState();
+}
+
+class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
+  final _passwordCtrl = TextEditingController();
+  final _confirmCtrl = TextEditingController();
+  bool _obscurePassword = true;
+  bool _obscureConfirm = true;
+  bool _busy = false;
+
+  @override
+  void dispose() {
+    _passwordCtrl.dispose();
+    _confirmCtrl.dispose();
+    super.dispose();
+  }
+
+  void _showError(String message) {
+    ScaffoldMessenger.of(
+      context,
+    ).showSnackBar(SnackBar(content: Text(message)));
+  }
+
+  Future<void> _save() async {
+    final password = _passwordCtrl.text;
+    if (password.length < 6) {
+      _showError('La contraseña debe tener al menos 6 caracteres');
+      return;
+    }
+    if (password != _confirmCtrl.text) {
+      _showError('Las contraseñas no coinciden');
+      return;
+    }
+    setState(() => _busy = true);
+    try {
+      await widget.auth.updatePassword(password);
+      if (mounted) Navigator.of(context).pop(true);
+    } on AuthException catch (e) {
+      if (mounted) _showError(e.message);
+    } on Object {
+      if (mounted) {
+        _showError('No se pudo cambiar la contraseña. Revisa tu conexión.');
+      }
+    } finally {
+      if (mounted) setState(() => _busy = false);
+    }
+  }
+
+  Widget _suffixEye(bool obscure, VoidCallback onTap) => IconButton(
+    icon: Icon(
+      obscure ? Icons.visibility_outlined : Icons.visibility_off_outlined,
+      color: FinoraColors.textSecondary,
+    ),
+    onPressed: onTap,
+  );
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Cambiar contraseña'),
+      content: Column(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          TextField(
+            controller: _passwordCtrl,
+            autofocus: true,
+            obscureText: _obscurePassword,
+            decoration: InputDecoration(
+              labelText: 'Nueva contraseña',
+              suffixIcon: _suffixEye(
+                _obscurePassword,
+                () => setState(() => _obscurePassword = !_obscurePassword),
+              ),
+            ),
+          ),
+          const SizedBox(height: FinoraTokens.s16),
+          TextField(
+            controller: _confirmCtrl,
+            obscureText: _obscureConfirm,
+            decoration: InputDecoration(
+              labelText: 'Confirmar contraseña',
+              suffixIcon: _suffixEye(
+                _obscureConfirm,
+                () => setState(() => _obscureConfirm = !_obscureConfirm),
+              ),
+            ),
+            onSubmitted: (_) => _save(),
+          ),
+        ],
+      ),
+      actions: [
+        TextButton(
+          onPressed: _busy ? null : () => Navigator.of(context).pop(),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: _busy ? null : _save,
+          child: _busy
+              ? const SizedBox(
+                  height: 18,
+                  width: 18,
+                  child: CircularProgressIndicator(strokeWidth: 2),
+                )
+              : const Text('Guardar'),
         ),
       ],
     );
@@ -625,10 +831,16 @@ class _SyncStatusChip extends StatelessWidget {
       SyncStatus.idle => (FinoraColors.income, 'Sincronizado'),
       SyncStatus.syncing => (FinoraColors.warning, 'Sincronizando…'),
       SyncStatus.offline => (FinoraColors.neutral, 'Sin conexión'),
-      SyncStatus.error => (FinoraColors.expense, 'Error — toca para reintentar'),
+      SyncStatus.error => (
+        FinoraColors.expense,
+        'Error — toca para reintentar',
+      ),
     };
     final chip = Container(
-      padding: const EdgeInsets.symmetric(horizontal: FinoraTokens.s12, vertical: 6),
+      padding: const EdgeInsets.symmetric(
+        horizontal: FinoraTokens.s12,
+        vertical: 6,
+      ),
       decoration: BoxDecoration(
         color: Colors.white.withValues(alpha: 0.2),
         borderRadius: BorderRadius.circular(FinoraTokens.rPill),
