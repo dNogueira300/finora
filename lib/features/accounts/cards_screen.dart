@@ -268,11 +268,22 @@ class _EmptyState extends StatelessWidget {
   Widget build(BuildContext context) {
     return Center(
       child: Padding(
-        padding: const EdgeInsets.all(32),
-        child: Text(
-          'Aún no tienes cuentas.\nToca "Nueva cuenta" para crear la primera.',
-          textAlign: TextAlign.center,
-          style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: FinoraColors.textSecondary),
+        padding: const EdgeInsets.all(FinoraTokens.s32),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            const Icon(
+              Icons.account_balance_wallet_outlined,
+              size: 48,
+              color: FinoraColors.textSecondary,
+            ),
+            const SizedBox(height: FinoraTokens.s12),
+            Text(
+              'Aún no tienes cuentas.\nToca "Nueva cuenta" para crear la primera.',
+              textAlign: TextAlign.center,
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: FinoraColors.textSecondary),
+            ),
+          ],
         ),
       ),
     );

@@ -69,14 +69,14 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
                 .toList();
             final upcoming = _upcomingEntries(creditAccounts, todayDate);
             return ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(FinoraTokens.s16),
               children: [
                 _MonthHeader(
                   month: _displayedMonth,
                   onPrevious: () => _changeMonth(-1),
                   onNext: () => _changeMonth(1),
                 ),
-                const SizedBox(height: 12),
+                const SizedBox(height: FinoraTokens.s12),
                 _MonthGrid(
                   month: _displayedMonth,
                   accounts: creditAccounts,
@@ -284,7 +284,7 @@ class _MonthGrid extends StatelessWidget {
               ),
           ],
         ),
-        const SizedBox(height: 4),
+        const SizedBox(height: FinoraTokens.s4),
         GridView.builder(
           shrinkWrap: true,
           physics: const NeverScrollableScrollPhysics(),
@@ -374,7 +374,7 @@ class _Legend extends StatelessWidget {
     return const Row(
       children: [
         _LegendDot(color: FinoraColors.expense, label: 'Pago'),
-        SizedBox(width: 16),
+        SizedBox(width: FinoraTokens.s16),
         _LegendDot(color: FinoraColors.warning, label: 'Cierre'),
       ],
     );

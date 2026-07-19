@@ -269,7 +269,12 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           const _GroupTitle('Alertas'),
                           _GroupCard(children: [
                             Padding(
-                              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                              padding: const EdgeInsets.fromLTRB(
+                                FinoraTokens.s16,
+                                FinoraTokens.s16,
+                                FinoraTokens.s16,
+                                FinoraTokens.s8,
+                              ),
                               child: TextField(
                                 controller: _limitCtrl,
                                 focusNode: _limitFocus,

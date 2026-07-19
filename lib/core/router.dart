@@ -14,6 +14,43 @@ import '../features/settings/settings_screen.dart';
 import '../features/stats/stats_screen.dart';
 import '../features/transactions/add_transaction_screen.dart';
 import 'app_shell.dart';
+import 'finora_tokens.dart';
+
+/// Pagina de una ruta "push" con transicion **slide-up + fade**: el contenido
+/// entra deslizando desde abajo (offset sutil) mientras aparece por opacidad,
+/// usando [FinoraTokens.dBase] y [FinoraTokens.curve] (ease-out, la curva
+/// correcta para entradas). Accesibilidad: si [disableAnimations] esta activo
+/// la transicion es instantanea (duracion cero), respetando
+/// `MediaQuery.disableAnimations`. Los tabs del shell no la usan (cambio seco).
+CustomTransitionPage<void> slideUpFadePage({
+  required LocalKey key,
+  required Widget child,
+  required bool disableAnimations,
+}) {
+  final duration = disableAnimations ? Duration.zero : FinoraTokens.dBase;
+  return CustomTransitionPage<void>(
+    key: key,
+    transitionDuration: duration,
+    reverseTransitionDuration: duration,
+    child: child,
+    transitionsBuilder: (context, animation, secondaryAnimation, child) {
+      final curved = CurvedAnimation(
+        parent: animation,
+        curve: FinoraTokens.curve,
+      );
+      return FadeTransition(
+        opacity: curved,
+        child: SlideTransition(
+          position: Tween<Offset>(
+            begin: const Offset(0, 0.04),
+            end: Offset.zero,
+          ).animate(curved),
+          child: child,
+        ),
+      );
+    },
+  );
+}
 
 /// Decision pura de redirect, extraida para poder testearla sin depender de
 /// go_router ni de Supabase. `location` es la ruta actualmente resolviendose
@@ -84,9 +121,30 @@ final routerProvider = Provider<GoRouter>((ref) {
           GoRoute(path: '/settings', builder: (_, _) => const SettingsScreen()),
         ],
       ),
-      GoRoute(path: '/add', builder: (_, _) => const AddTransactionScreen()),
-      GoRoute(path: '/calendar', builder: (_, _) => const CalendarScreen()),
-      GoRoute(path: '/alerts', builder: (_, _) => const AlertsScreen()),
+      GoRoute(
+        path: '/add',
+        pageBuilder: (context, state) => slideUpFadePage(
+          key: state.pageKey,
+          disableAnimations: MediaQuery.disableAnimationsOf(context),
+          child: const AddTransactionScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/calendar',
+        pageBuilder: (context, state) => slideUpFadePage(
+          key: state.pageKey,
+          disableAnimations: MediaQuery.disableAnimationsOf(context),
+          child: const CalendarScreen(),
+        ),
+      ),
+      GoRoute(
+        path: '/alerts',
+        pageBuilder: (context, state) => slideUpFadePage(
+          key: state.pageKey,
+          disableAnimations: MediaQuery.disableAnimationsOf(context),
+          child: const AlertsScreen(),
+        ),
+      ),
     ],
   );
 });
