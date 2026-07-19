@@ -1,4 +1,4 @@
-import 'package:drift/drift.dart';
+import 'package:drift/drift.dart' hide Column;
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 import '../../core/category_icons.dart';
 import '../../core/dates.dart';
 import '../../core/finora_colors.dart';
+import '../../core/finora_tokens.dart';
 import '../../core/money.dart';
 import '../../data/local/database.dart';
 import '../../data/sync/sync_providers.dart';
@@ -35,6 +36,22 @@ const _accountTypeLabels = {
 };
 
 String _accountTypeLabel(String type) => _accountTypeLabels[type] ?? type;
+
+/// Icono representativo del tipo de cuenta, para decorar el selector de cuenta
+/// (mismo lenguaje visual que `cards_screen.dart`).
+IconData _accountTypeIcon(String type) {
+  switch (type) {
+    case 'wallet':
+      return Icons.account_balance_wallet_outlined;
+    case 'debit':
+      return Icons.credit_card_outlined;
+    case 'credit':
+      return Icons.credit_score_outlined;
+    case 'cash':
+    default:
+      return Icons.payments_outlined;
+  }
+}
 
 /// Pantalla de alta de una transaccion (gasto o ingreso). Referencia Stitch
 /// "Nuevo Gasto Premium": toggle Gasto/Ingreso, monto grande centrado,
@@ -79,6 +96,38 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
       locale: const Locale('es'),
     );
     if (picked != null) setState(() => _date = picked);
+  }
+
+  Future<void> _editNote() async {
+    final ctrl = TextEditingController(text: _noteCtrl.text);
+    final result = await showDialog<String>(
+      context: context,
+      builder: (dialogContext) => AlertDialog(
+        title: const Text('Nota'),
+        content: TextField(
+          controller: ctrl,
+          autofocus: true,
+          maxLines: 3,
+          decoration: const InputDecoration(
+            hintText: 'Agrega una nota (opcional)',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.of(dialogContext).pop(),
+            child: const Text('Cancelar'),
+          ),
+          FilledButton(
+            onPressed: () => Navigator.of(dialogContext).pop(ctrl.text),
+            child: const Text('Guardar'),
+          ),
+        ],
+      ),
+    );
+    ctrl.dispose();
+    if (result != null && mounted) {
+      setState(() => _noteCtrl.text = result);
+    }
   }
 
   Future<void> _save() async {
@@ -127,155 +176,297 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
     if (mounted) context.pop();
   }
 
+  /// Un lado del control segmentado doble (pill full-width). El lado
+  /// seleccionado se rellena con [color] (expense/income) y texto blanco; el
+  /// no seleccionado queda transparente con texto secundario. El
+  /// [AnimatedContainer] anima el relleno y el [InkWell] da feedback de
+  /// presion (ripple recortado al pill).
+  Widget _kindSegment({
+    required String value,
+    required String label,
+    required IconData icon,
+    required Color color,
+  }) {
+    final selected = _kind == value;
+    final fg = selected ? Colors.white : FinoraColors.textSecondary;
+    return Expanded(
+      child: Material(
+        color: Colors.transparent,
+        borderRadius: BorderRadius.circular(FinoraTokens.rPill),
+        clipBehavior: Clip.antiAlias,
+        child: InkWell(
+          onTap: () => setState(() {
+            _kind = value;
+            // La categoria seleccionada pertenece al `kind` anterior: se
+            // limpia para forzar una nueva eleccion valida.
+            _selectedCategoryId = null;
+          }),
+          child: AnimatedContainer(
+            duration: FinoraTokens.dFast,
+            curve: FinoraTokens.curve,
+            padding: const EdgeInsets.symmetric(vertical: FinoraTokens.s12),
+            decoration: BoxDecoration(
+              color: selected ? color : Colors.transparent,
+              borderRadius: BorderRadius.circular(FinoraTokens.rPill),
+            ),
+            child: Row(
+              mainAxisAlignment: MainAxisAlignment.center,
+              children: [
+                Icon(icon, size: 18, color: fg),
+                const SizedBox(width: FinoraTokens.s8),
+                Text(
+                  label,
+                  style: TextStyle(fontWeight: FontWeight.w700, color: fg),
+                ),
+              ],
+            ),
+          ),
+        ),
+      ),
+    );
+  }
+
   @override
   Widget build(BuildContext context) {
     final isExpense = _kind == 'expense';
     final kindColor = isExpense ? FinoraColors.expense : FinoraColors.income;
+    final textTheme = Theme.of(context).textTheme;
     final categoriesAsync = ref.watch(_categoriesByKindProvider(_kind));
     final accountsAsync = ref.watch(_activeAccountsProvider);
     final accounts = accountsAsync.valueOrNull ?? const [];
     final noAccounts = accountsAsync.hasValue && accounts.isEmpty;
     final selectedAccountId =
         accounts.any((a) => a.id == _selectedAccountId) ? _selectedAccountId : null;
+    Account? selectedAccount;
+    for (final a in accounts) {
+      if (a.id == selectedAccountId) {
+        selectedAccount = a;
+        break;
+      }
+    }
 
     return Scaffold(
       appBar: AppBar(title: Text(isExpense ? 'Nuevo gasto' : 'Nuevo ingreso')),
       body: SafeArea(
-        child: ListView(
-          padding: const EdgeInsets.all(16),
+        child: Column(
           children: [
-            Center(
-              child: SegmentedButton<String>(
-                segments: const [
-                  ButtonSegment(
-                    value: 'expense',
-                    label: Text('Gasto'),
-                    icon: Icon(Icons.arrow_upward_rounded),
-                  ),
-                  ButtonSegment(
-                    value: 'income',
-                    label: Text('Ingreso'),
-                    icon: Icon(Icons.arrow_downward_rounded),
-                  ),
-                ],
-                selected: {_kind},
-                onSelectionChanged: (selection) => setState(() {
-                  _kind = selection.first;
-                  // La categoria seleccionada pertenece al `kind` anterior:
-                  // se limpia para forzar una nueva eleccion valida.
-                  _selectedCategoryId = null;
-                }),
-                style: SegmentedButton.styleFrom(
-                  selectedBackgroundColor: kindColor,
-                  selectedForegroundColor: Colors.white,
-                ),
-              ),
-            ),
-            const SizedBox(height: 24),
-            TextField(
-              controller: _amountCtrl,
-              keyboardType: const TextInputType.numberWithOptions(decimal: true),
-              textAlign: TextAlign.center,
-              style: Theme.of(context)
-                  .textTheme
-                  .displaySmall
-                  ?.copyWith(fontWeight: FontWeight.w700, color: kindColor),
-              decoration: const InputDecoration(
-                hintText: 'S/ 0.00',
-                border: InputBorder.none,
-                filled: false,
-              ),
-            ),
-            const SizedBox(height: 24),
-            Text('Categoría', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            categoriesAsync.when(
-              data: (categories) {
-                if (categories.isEmpty) {
-                  return const Text(
-                    'No hay categorías para este tipo todavía.',
-                    style: TextStyle(color: FinoraColors.textSecondary),
-                  );
-                }
-                return Wrap(
-                  spacing: 8,
-                  runSpacing: 8,
-                  children: [
-                    for (final c in categories)
-                      ChoiceChip(
-                        label: Text(c.name),
-                        avatar: Icon(
-                          categoryIcons[c.icon] ?? Icons.category,
-                          size: 18,
-                          color: _selectedCategoryId == c.id ? Colors.white : Color(c.color),
+            Expanded(
+              child: ListView(
+                padding: const EdgeInsets.all(FinoraTokens.s16),
+                children: [
+                  // Control segmentado doble Gasto/Ingreso (pill full-width).
+                  Container(
+                    padding: const EdgeInsets.all(FinoraTokens.s4),
+                    decoration: BoxDecoration(
+                      color: FinoraColors.surface,
+                      borderRadius: BorderRadius.circular(FinoraTokens.rPill),
+                      border: Border.all(color: FinoraColors.border),
+                    ),
+                    child: Row(
+                      children: [
+                        _kindSegment(
+                          value: 'expense',
+                          label: 'Gasto',
+                          icon: Icons.arrow_upward_rounded,
+                          color: FinoraColors.expense,
                         ),
-                        selected: _selectedCategoryId == c.id,
-                        selectedColor: Color(c.color),
-                        labelStyle: TextStyle(
-                          color: _selectedCategoryId == c.id ? Colors.white : null,
+                        _kindSegment(
+                          value: 'income',
+                          label: 'Ingreso',
+                          icon: Icons.arrow_downward_rounded,
+                          color: FinoraColors.income,
                         ),
-                        onSelected: (_) => setState(() => _selectedCategoryId = c.id),
+                      ],
+                    ),
+                  ),
+                  const SizedBox(height: FinoraTokens.s32),
+                  // Monto protagonista: centrado, prefijo "S/" secundario,
+                  // displayLarge en el color del `kind`, sin borde (solo un
+                  // underline sutil al enfocar).
+                  TextField(
+                    controller: _amountCtrl,
+                    keyboardType:
+                        const TextInputType.numberWithOptions(decimal: true),
+                    textAlign: TextAlign.center,
+                    cursorColor: kindColor,
+                    style: textTheme.displayLarge?.copyWith(
+                      fontWeight: FontWeight.w700,
+                      color: kindColor,
+                    ),
+                    decoration: InputDecoration(
+                      isDense: true,
+                      filled: false,
+                      hintText: 'S/ 0.00',
+                      hintStyle: textTheme.displaySmall?.copyWith(
+                        fontWeight: FontWeight.w700,
+                        color: FinoraColors.textSecondary,
                       ),
-                  ],
-                );
-              },
-              loading: () => const Center(child: CircularProgressIndicator()),
-              error: (e, _) => Text('No se pudo cargar categorías: $e'),
-            ),
-            const SizedBox(height: 24),
-            Text('Cuenta', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
-            if (noAccounts)
-              Container(
-                padding: const EdgeInsets.all(12),
-                decoration: BoxDecoration(
-                  color: FinoraColors.warning.withValues(alpha: .1),
-                  borderRadius: BorderRadius.circular(12),
-                ),
-                child: const Row(
-                  children: [
-                    Icon(Icons.info_outline, color: FinoraColors.warning),
-                    SizedBox(width: 8),
-                    Expanded(
-                      child: Text('Crea una cuenta primero en Mis tarjetas'),
+                      prefixText: 'S/ ',
+                      prefixStyle: textTheme.headlineMedium?.copyWith(
+                        fontWeight: FontWeight.w600,
+                        color: FinoraColors.textSecondary,
+                      ),
+                      border: InputBorder.none,
+                      enabledBorder: InputBorder.none,
+                      focusedBorder: const UnderlineInputBorder(
+                        borderSide:
+                            BorderSide(color: FinoraColors.border, width: 2),
+                      ),
                     ),
-                  ],
-                ),
-              )
-            else
-              DropdownButtonFormField<String>(
-                initialValue: selectedAccountId,
-                decoration: const InputDecoration(border: OutlineInputBorder()),
-                hint: const Text('Selecciona una cuenta'),
-                items: [
-                  for (final a in accounts)
-                    DropdownMenuItem(
-                      value: a.id,
-                      child: Text('${a.name} (${_accountTypeLabel(a.type)})'),
+                  ),
+                  const SizedBox(height: FinoraTokens.s32),
+                  Text('Categoría', style: textTheme.titleMedium),
+                  const SizedBox(height: FinoraTokens.s12),
+                  categoriesAsync.when(
+                    data: (categories) {
+                      if (categories.isEmpty) {
+                        return const Text(
+                          'No hay categorías para este tipo todavía.',
+                          style: TextStyle(color: FinoraColors.textSecondary),
+                        );
+                      }
+                      return Wrap(
+                        spacing: FinoraTokens.s8,
+                        runSpacing: FinoraTokens.s8,
+                        children: [
+                          for (final c in categories)
+                            ChoiceChip(
+                              label: Text(c.name),
+                              avatar: Icon(
+                                categoryIcons[c.icon] ?? Icons.category,
+                                size: 18,
+                                color: _selectedCategoryId == c.id
+                                    ? Colors.white
+                                    : Color(c.color),
+                              ),
+                              selected: _selectedCategoryId == c.id,
+                              selectedColor: Color(c.color),
+                              backgroundColor: FinoraColors.surface,
+                              showCheckmark: false,
+                              pressElevation: 0,
+                              shape: StadiumBorder(
+                                side: BorderSide(
+                                  color: _selectedCategoryId == c.id
+                                      ? Color(c.color)
+                                      : FinoraColors.border,
+                                ),
+                              ),
+                              labelStyle: TextStyle(
+                                fontWeight: FontWeight.w600,
+                                color: _selectedCategoryId == c.id
+                                    ? Colors.white
+                                    : FinoraColors.textPrimary,
+                              ),
+                              onSelected: (_) => setState(
+                                  () => _selectedCategoryId = c.id),
+                            ),
+                        ],
+                      );
+                    },
+                    loading: () =>
+                        const Center(child: CircularProgressIndicator()),
+                    error: (e, _) => Text('No se pudo cargar categorías: $e'),
+                  ),
+                  const SizedBox(height: FinoraTokens.s24),
+                  Text('Cuenta', style: textTheme.titleMedium),
+                  const SizedBox(height: FinoraTokens.s12),
+                  if (noAccounts)
+                    Container(
+                      padding: const EdgeInsets.all(FinoraTokens.s12),
+                      decoration: BoxDecoration(
+                        color: FinoraColors.warning.withValues(alpha: .1),
+                        borderRadius:
+                            BorderRadius.circular(FinoraTokens.rInput),
+                      ),
+                      child: const Row(
+                        children: [
+                          Icon(Icons.info_outline,
+                              color: FinoraColors.warning),
+                          SizedBox(width: FinoraTokens.s8),
+                          Expanded(
+                            child:
+                                Text('Crea una cuenta primero en Mis tarjetas'),
+                          ),
+                        ],
+                      ),
+                    )
+                  else
+                    // El selector conserva el dropdown pero decorado como card
+                    // (radio 12, borde) con el icono del tipo de cuenta.
+                    DropdownButtonFormField<String>(
+                      initialValue: selectedAccountId,
+                      decoration: InputDecoration(
+                        prefixIcon: Icon(
+                          _accountTypeIcon(selectedAccount?.type ?? 'cash'),
+                          color: FinoraColors.textSecondary,
+                        ),
+                      ),
+                      hint: const Text('Selecciona una cuenta'),
+                      items: [
+                        for (final a in accounts)
+                          DropdownMenuItem(
+                            value: a.id,
+                            child:
+                                Text('${a.name} (${_accountTypeLabel(a.type)})'),
+                          ),
+                      ],
+                      onChanged: (v) => setState(() => _selectedAccountId = v),
                     ),
+                  const SizedBox(height: FinoraTokens.s24),
+                  // Fecha y nota agrupadas en una sola card (radio 20). Se usa
+                  // `Card` (un Material) para que las salpicaduras/ink de los
+                  // ListTile se pinten correctamente sobre la superficie.
+                  Card(
+                    margin: EdgeInsets.zero,
+                    clipBehavior: Clip.antiAlias,
+                    child: Column(
+                      children: [
+                        ListTile(
+                          leading:
+                              const Icon(Icons.calendar_today_outlined),
+                          title: const Text('Fecha'),
+                          subtitle: Text(
+                              DateFormat('d MMMM yyyy', 'es').format(_date)),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: _pickDate,
+                        ),
+                        const Divider(
+                            height: 1, color: FinoraColors.border),
+                        ListTile(
+                          leading: const Icon(Icons.notes_outlined),
+                          title: const Text('Nota'),
+                          subtitle: Text(
+                            _noteCtrl.text.isEmpty
+                                ? 'Opcional'
+                                : _noteCtrl.text,
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                          trailing: const Icon(Icons.chevron_right),
+                          onTap: _editNote,
+                        ),
+                      ],
+                    ),
+                  ),
                 ],
-                onChanged: (v) => setState(() => _selectedAccountId = v),
-              ),
-            const SizedBox(height: 16),
-            ListTile(
-              contentPadding: EdgeInsets.zero,
-              leading: const Icon(Icons.calendar_today_outlined),
-              title: const Text('Fecha'),
-              subtitle: Text(DateFormat('d MMMM yyyy', 'es').format(_date)),
-              onTap: _pickDate,
-            ),
-            const SizedBox(height: 16),
-            TextField(
-              controller: _noteCtrl,
-              decoration: const InputDecoration(
-                labelText: 'Nota (opcional)',
-                border: OutlineInputBorder(),
               ),
             ),
-            const SizedBox(height: 24),
-            ElevatedButton(
-              onPressed: noAccounts ? null : _save,
-              child: const Text('Guardar'),
+            // Boton "Guardar" fijo al fondo (pill alto 56), dentro del
+            // SafeArea; con `resizeToAvoidBottomInset` (default) sube sobre el
+            // teclado en lugar de quedar tapado.
+            Padding(
+              padding: const EdgeInsets.all(FinoraTokens.s16),
+              child: SizedBox(
+                width: double.infinity,
+                height: 56,
+                child: ElevatedButton(
+                  onPressed: noAccounts ? null : _save,
+                  style: ElevatedButton.styleFrom(
+                    shape: const StadiumBorder(),
+                  ),
+                  child: const Text('Guardar'),
+                ),
+              ),
             ),
           ],
         ),

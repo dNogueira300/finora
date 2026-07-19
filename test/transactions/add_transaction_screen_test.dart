@@ -7,6 +7,7 @@ import 'package:flutter_test/flutter_test.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/date_symbol_data_local.dart';
 
+import 'package:finora/core/finora_colors.dart';
 import 'package:finora/data/local/database.dart';
 import 'package:finora/data/sync/sync_providers.dart';
 import 'package:finora/features/transactions/add_transaction_screen.dart';
@@ -164,6 +165,31 @@ void main() {
 
     final rows = await db.select(db.transactions).get();
     expect(rows, isEmpty);
+
+    await drainTimers(tester);
+  });
+
+  testWidgets(
+      'el segmento seleccionado "Gasto" pinta el fondo con el color expense',
+      (tester) async {
+    await growTestSurface(tester);
+
+    await tester.pumpWidget(buildPlainApp());
+    await tester.pumpAndSettle();
+
+    // Por defecto el `kind` es "expense", de modo que el segmento "Gasto"
+    // arranca seleccionado: su contenedor animado debe pintarse con el color
+    // semantico de gasto (heroe del control segmentado doble).
+    final selectedSegment = tester.widget<AnimatedContainer>(
+      find
+          .ancestor(
+            of: find.text('Gasto'),
+            matching: find.byType(AnimatedContainer),
+          )
+          .first,
+    );
+    final decoration = selectedSegment.decoration! as BoxDecoration;
+    expect(decoration.color, FinoraColors.expense);
 
     await drainTimers(tester);
   });
