@@ -60,8 +60,8 @@ class _CalendarScreenState extends ConsumerState<CalendarScreen> {
     final todayDate = DateTime(today.year, today.month, today.day);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Calendario de vencimientos')),
-      body: SafeArea(
+      body: BrandPage(
+        title: 'Calendario de vencimientos',
         child: accountsAsync.when(
           data: (accounts) {
             final creditAccounts = accounts

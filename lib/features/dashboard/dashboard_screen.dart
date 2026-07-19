@@ -1,7 +1,6 @@
 import 'package:flutter/material.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
-import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/dates.dart';
 import '../../core/finora_colors.dart';
@@ -11,6 +10,7 @@ import '../../core/money.dart';
 import '../../data/local/database.dart';
 import '../../data/sync/sync_providers.dart';
 import '../alerts/alerts_screen.dart';
+import '../settings/settings_screen.dart' show currentUserAliasProvider;
 import 'widgets/txn_tile.dart';
 
 /// Las 10 transacciones mas recientes. Ademas de alimentar la lista de la
@@ -97,26 +97,13 @@ final totalBalanceProvider = FutureProvider.autoDispose<int>((ref) async {
   return total;
 });
 
-/// Email del usuario autenticado, o null si no hay sesion. Envuelto en
-/// try/catch porque en tests de widgets no se llama a `Supabase.initialize()`
-/// y `Supabase.instance` lanza un `AssertionError` en ese caso: se trata
-/// igual que "sin sesion" en vez de propagar el error.
-String? _currentUserEmail() {
-  try {
-    return Supabase.instance.client.auth.currentUser?.email;
-  } on Object {
-    return null;
-  }
-}
-
 class DashboardScreen extends ConsumerWidget {
   const DashboardScreen({super.key});
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
-    final email = _currentUserEmail();
-    final localPart = email?.split('@').first;
-    final greeting = localPart == null || localPart.isEmpty ? 'Hola' : 'Hola, $localPart';
+    final alias = ref.watch(currentUserAliasProvider);
+    final greeting = alias == null || alias.isEmpty ? 'Hola' : 'Hola, $alias';
 
     final syncStatus = ref.watch(syncStatusProvider);
     final txnsAsync = ref.watch(recentTxnsProvider);
@@ -135,62 +122,44 @@ class DashboardScreen extends ConsumerWidget {
         padding: EdgeInsets.zero,
         child: Column(
           children: [
-            // Cabecera de marca con degradado: saludo + campana y, en grande,
-            // el saldo total estilo "wallet".
+            // Cabecera de marca con degradado: solo saludo + indicador de
+            // sync + campana (el saldo total vive en la sheet, abajo).
             BrandHeader(
               padding: EdgeInsets.zero,
               child: SafeArea(
                 bottom: false,
                 child: Padding(
                   // Padding inferior generoso: la sheet se sube (Transform) y
-                  // solapa el borde inferior del header sin tapar el monto.
+                  // solapa el borde inferior del header sin tapar el saludo.
                   padding: const EdgeInsets.fromLTRB(
                     FinoraTokens.s16,
                     FinoraTokens.s16,
                     FinoraTokens.s16,
-                    FinoraTokens.s32,
+                    FinoraTokens.s32 + FinoraTokens.s8,
                   ),
-                  child: Column(
-                    crossAxisAlignment: CrossAxisAlignment.start,
+                  child: Row(
                     children: [
-                      Row(
-                        children: [
-                          Expanded(
-                            child: Text(
-                              greeting,
-                              style: textTheme.titleLarge?.copyWith(
-                                color: Colors.white,
-                                fontWeight: FontWeight.w700,
-                              ),
-                            ),
+                      Expanded(
+                        child: Text(
+                          greeting,
+                          style: textTheme.titleLarge?.copyWith(
+                            color: Colors.white,
+                            fontWeight: FontWeight.w700,
                           ),
-                          _SyncIndicator(status: syncStatus),
-                          const SizedBox(width: FinoraTokens.s4),
-                          Badge(
-                            label: Text('$unreadCount'),
-                            isLabelVisible: unreadCount > 0,
-                            child: IconButton(
-                              icon: const Icon(
-                                Icons.notifications_none_rounded,
-                                color: Colors.white,
-                              ),
-                              tooltip: 'Alertas',
-                              onPressed: () => context.push('/alerts'),
-                            ),
+                        ),
+                      ),
+                      _SyncIndicator(status: syncStatus),
+                      const SizedBox(width: FinoraTokens.s4),
+                      Badge(
+                        label: Text('$unreadCount'),
+                        isLabelVisible: unreadCount > 0,
+                        child: IconButton(
+                          icon: const Icon(
+                            Icons.notifications_none_rounded,
+                            color: Colors.white,
                           ),
-                        ],
-                      ),
-                      const SizedBox(height: FinoraTokens.s16),
-                      const Text(
-                        'Saldo total',
-                        style: TextStyle(fontSize: 13, color: Colors.white70),
-                      ),
-                      const SizedBox(height: FinoraTokens.s4),
-                      Text(
-                        formatMoney(balanceAsync.valueOrNull ?? 0),
-                        style: textTheme.displaySmall?.copyWith(
-                          color: Colors.white,
-                          fontWeight: FontWeight.w700,
+                          tooltip: 'Alertas',
+                          onPressed: () => context.push('/alerts'),
                         ),
                       ),
                     ],
@@ -211,7 +180,13 @@ class DashboardScreen extends ConsumerWidget {
                 child: Column(
                   crossAxisAlignment: CrossAxisAlignment.stretch,
                   children: [
-                    // 1. Acciones rapidas.
+                    // 1. Saldo total: fuera del header, sobre un fondo verde
+                    // claro (primary al 12%, el mismo tono del squircle
+                    // resaltado) que lo diferencia del resto de la sheet.
+                    _TotalBalanceCard(cents: balanceAsync.valueOrNull ?? 0),
+                    const SizedBox(height: FinoraTokens.s24),
+                    // 2. Acciones rapidas (todas con el mismo diseño
+                    // resaltado de "Agregar gasto").
                     Row(
                       mainAxisAlignment: MainAxisAlignment.spaceBetween,
                       crossAxisAlignment: CrossAxisAlignment.start,
@@ -225,22 +200,25 @@ class DashboardScreen extends ConsumerWidget {
                         Squircle(
                           icon: Icons.add_circle_outline,
                           label: 'Agregar ingreso',
+                          highlighted: true,
                           onTap: () => context.push('/add'),
                         ),
                         Squircle(
                           icon: Icons.calendar_month_outlined,
                           label: 'Calendario',
+                          highlighted: true,
                           onTap: () => context.push('/calendar'),
                         ),
                         Squircle(
                           icon: Icons.savings_outlined,
                           label: 'Metas',
-                          onTap: () => context.go('/goals'),
+                          highlighted: true,
+                          onTap: () => context.push('/goals'),
                         ),
                       ],
                     ),
                     const SizedBox(height: FinoraTokens.s24),
-                    // 2. Resumen del mes.
+                    // 3. Resumen del mes.
                     const SectionHeader('Resumen del mes'),
                     const SizedBox(height: FinoraTokens.s12),
                     _MonthSummaryCard(
@@ -248,7 +226,7 @@ class DashboardScreen extends ConsumerWidget {
                       expenseCents: totals?.expenseCents ?? 0,
                     ),
                     const SizedBox(height: FinoraTokens.s24),
-                    // 3. Movimientos recientes.
+                    // 4. Movimientos recientes.
                     const SectionHeader('Movimientos recientes'),
                     const SizedBox(height: FinoraTokens.s8),
                     txnsAsync.when(
@@ -265,10 +243,20 @@ class DashboardScreen extends ConsumerWidget {
                             ),
                           );
                         }
+                        // Linea discreta entre movimientos consecutivos.
                         return Column(
                           children: [
-                            for (final txn in txns)
-                              TxnTile(txn: txn, category: categories[txn.categoryId]),
+                            for (var i = 0; i < txns.length; i++) ...[
+                              if (i > 0)
+                                const Divider(
+                                  height: 1,
+                                  color: FinoraColors.border,
+                                ),
+                              TxnTile(
+                                txn: txns[i],
+                                category: categories[txns[i].categoryId],
+                              ),
+                            ],
                           ],
                         );
                       },
@@ -282,7 +270,7 @@ class DashboardScreen extends ConsumerWidget {
                       ),
                     ),
                     const SizedBox(height: FinoraTokens.s16),
-                    // 4. Metas de ahorro.
+                    // 5. Metas de ahorro.
                     _GoalsCard(goal: nearestGoal(goalsAsync.valueOrNull ?? const [])),
                   ],
                 ),
@@ -290,6 +278,49 @@ class DashboardScreen extends ConsumerWidget {
             ),
           ],
         ),
+      ),
+    );
+  }
+}
+
+/// Card "Saldo total": vive en la sheet (no en el header) con fondo verde
+/// claro — primary al 12% compuesto sobre blanco, el mismo tono del
+/// [Squircle] resaltado — y borde primary, para diferenciarla del resto de
+/// cards blancas de la pantalla.
+class _TotalBalanceCard extends StatelessWidget {
+  const _TotalBalanceCard({required this.cents});
+  final int cents;
+
+  @override
+  Widget build(BuildContext context) {
+    final background = Color.alphaBlend(
+      FinoraColors.primary.withValues(alpha: 0.12),
+      FinoraColors.surface,
+    );
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(FinoraTokens.s16),
+      decoration: BoxDecoration(
+        color: background,
+        borderRadius: BorderRadius.circular(FinoraTokens.rCard),
+        border: Border.all(color: FinoraColors.primary),
+      ),
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          const Text(
+            'Saldo total',
+            style: TextStyle(fontSize: 13, color: FinoraColors.textSecondary),
+          ),
+          const SizedBox(height: FinoraTokens.s4),
+          Text(
+            formatMoney(cents),
+            style: Theme.of(context).textTheme.displaySmall?.copyWith(
+                  color: FinoraColors.primaryDark,
+                  fontWeight: FontWeight.w700,
+                ),
+          ),
+        ],
       ),
     );
   }
@@ -394,7 +425,7 @@ class _GoalsCard extends StatelessWidget {
         borderRadius: BorderRadius.circular(FinoraTokens.rCard),
       ),
       child: InkWell(
-        onTap: () => context.go('/goals'),
+        onTap: () => context.push('/goals'),
         child: Padding(
           padding: const EdgeInsets.all(FinoraTokens.s16),
           child: goal == null ? _buildEmpty(context) : _buildGoal(context, goal!),

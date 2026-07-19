@@ -25,6 +25,22 @@ final lockUserEmailProvider = Provider<String?>((ref) {
   }
 });
 
+/// Nombre a saludar en el bloqueo: el alias de `user_metadata` si existe
+/// (mismo criterio que `currentUserAliasProvider` en settings, que no se
+/// importa aqui para no crear una dependencia circular), o la parte local
+/// del email como fallback. Los tests overridean [lockUserEmailProvider] y
+/// llegan por el fallback (sin `Supabase.initialize()` el try lanza).
+final lockUserNameProvider = Provider<String?>((ref) {
+  try {
+    final alias =
+        Supabase.instance.client.auth.currentUser?.userMetadata?['alias'];
+    if (alias is String && alias.trim().isNotEmpty) return alias.trim();
+  } on Object {
+    // sin sesion (o tests): se cae al fallback del email
+  }
+  return ref.watch(lockUserEmailProvider)?.split('@').first;
+});
+
 class LockScreen extends ConsumerStatefulWidget {
   const LockScreen({super.key});
   @override
@@ -52,8 +68,7 @@ class _LockScreenState extends ConsumerState<LockScreen> {
 
   @override
   Widget build(BuildContext context) {
-    final email = ref.watch(lockUserEmailProvider);
-    final name = email?.split('@').first;
+    final name = ref.watch(lockUserNameProvider);
     final bottomInset = MediaQuery.viewPaddingOf(context).bottom;
 
     return Scaffold(
@@ -71,20 +86,14 @@ class _LockScreenState extends ConsumerState<LockScreen> {
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
-                      Container(
-                        padding: const EdgeInsets.all(FinoraTokens.s12),
-                        decoration: BoxDecoration(
-                          color: FinoraColors.surface,
-                          borderRadius:
-                              BorderRadius.circular(FinoraTokens.rCard),
-                        ),
-                        child: Semantics(
-                          label: 'Finora',
-                          image: true,
-                          child: Image.asset(
-                            'assets/brand/logo_inicio.png',
-                            height: 96,
-                          ),
+                      // Mismo logo que el login, directamente sobre el
+                      // degradado (sin contenedor blanco).
+                      Semantics(
+                        label: 'Finora',
+                        image: true,
+                        child: Image.asset(
+                          'assets/brand/finora_login.png',
+                          height: 140,
                         ),
                       ),
                       const SizedBox(height: FinoraTokens.s32),
@@ -113,8 +122,9 @@ class _LockScreenState extends ConsumerState<LockScreen> {
                         backgroundColor: FinoraColors.primary,
                         foregroundColor: FinoraColors.surface,
                         shape: RoundedRectangleBorder(
-                          borderRadius:
-                              BorderRadius.circular(FinoraTokens.rPill),
+                          borderRadius: BorderRadius.circular(
+                            FinoraTokens.rPill,
+                          ),
                         ),
                       ),
                       icon: const Icon(Icons.fingerprint),
@@ -149,10 +159,7 @@ class _Greeting extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    const base = TextStyle(
-      fontSize: 22,
-      color: FinoraColors.surface,
-    );
+    const base = TextStyle(fontSize: 22, color: FinoraColors.surface);
     if (name == null || name!.isEmpty) {
       return const Text('Hola', textAlign: TextAlign.center, style: base);
     }

@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../core/dates.dart';
 import '../../core/finora_colors.dart';
 import '../../core/finora_tokens.dart';
+import '../../core/finora_widgets.dart';
 import '../../core/money.dart';
 import '../../data/local/database.dart';
 import '../../data/sync/sync_providers.dart';
@@ -74,8 +75,8 @@ class StatsScreen extends ConsumerWidget {
     };
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Análisis')),
-      body: SafeArea(
+      body: BrandPage(
+        title: 'Análisis',
         child: ListView(
           padding: const EdgeInsets.all(FinoraTokens.s16),
           children: [

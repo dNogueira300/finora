@@ -6,6 +6,7 @@ import 'package:intl/intl.dart';
 import '../../core/dates.dart';
 import '../../core/finora_colors.dart';
 import '../../core/finora_tokens.dart';
+import '../../core/finora_widgets.dart';
 import '../../core/money.dart';
 import '../../data/local/database.dart';
 import '../../data/sync/sync_providers.dart';
@@ -26,7 +27,6 @@ class GoalsScreen extends ConsumerWidget {
     final goalsAsync = ref.watch(_goalsProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Metas de ahorro')),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'goals-new-fab',
         onPressed: () => _openEditSheet(context),
@@ -38,15 +38,14 @@ class GoalsScreen extends ConsumerWidget {
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
         ),
       ),
-      body: SafeArea(
+      body: BrandPage(
+        title: 'Metas de ahorro',
         child: goalsAsync.when(
           data: (goals) {
             if (goals.isEmpty) return const _EmptyState();
             return ListView(
               padding: const EdgeInsets.all(16),
-              children: [
-                for (final g in goals) _GoalCard(goal: g),
-              ],
+              children: [for (final g in goals) _GoalCard(goal: g)],
             );
           },
           loading: () => const Center(child: CircularProgressIndicator()),
@@ -70,23 +69,31 @@ Future<void> _openEditSheet(BuildContext context, {SavingsGoal? goal}) {
 /// fila tal cual (ver nota de `upsert`/`insertOnConflictUpdate` en
 /// `goals_dao.dart`: valida columnas NOT NULL como si fuera un INSERT nuevo
 /// aunque la fila ya exista).
-Future<void> _addContribution(WidgetRef ref, SavingsGoal g, int cents) =>
-    ref.read(databaseProvider).goalsDao.upsert(SavingsGoalsCompanion(
-          id: Value(g.id),
-          name: Value(g.name),
-          targetCents: Value(g.targetCents),
-          savedCents: Value(g.savedCents + cents),
-          deadline: Value(g.deadline),
-          color: Value(g.color),
-          updatedAt: Value(DateTime.now().toUtc()),
-        ));
+Future<void> _addContribution(WidgetRef ref, SavingsGoal g, int cents) => ref
+    .read(databaseProvider)
+    .goalsDao
+    .upsert(
+      SavingsGoalsCompanion(
+        id: Value(g.id),
+        name: Value(g.name),
+        targetCents: Value(g.targetCents),
+        savedCents: Value(g.savedCents + cents),
+        deadline: Value(g.deadline),
+        color: Value(g.color),
+        updatedAt: Value(DateTime.now().toUtc()),
+      ),
+    );
 
 /// Dialogo "Abonar": pide un monto y lo suma a `savedCents`. Distingue
 /// cancelar (el dialogo devuelve `null`) de un monto invalido (el dialogo
 /// devuelve el texto crudo, que no parsea a un entero positivo) para mostrar
 /// el SnackBar "Monto inválido" solo en el segundo caso, mismo patron que
 /// `add_transaction_screen._save`.
-Future<void> _showContributeDialog(BuildContext context, WidgetRef ref, SavingsGoal goal) async {
+Future<void> _showContributeDialog(
+  BuildContext context,
+  WidgetRef ref,
+  SavingsGoal goal,
+) async {
   final input = await showDialog<String>(
     context: context,
     builder: (ctx) => _ContributeDialog(goalName: goal.name),
@@ -96,8 +103,9 @@ Future<void> _showContributeDialog(BuildContext context, WidgetRef ref, SavingsG
   final cents = parseMoney(input);
   if (cents == null || cents <= 0) {
     if (context.mounted) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Monto inválido')));
+      ScaffoldMessenger.of(
+        context,
+      ).showSnackBar(const SnackBar(content: Text('Monto inválido')));
     }
     return;
   }
@@ -144,7 +152,10 @@ class _ContributeDialogState extends State<_ContributeDialog> {
         ),
       ),
       actions: [
-        TextButton(onPressed: () => Navigator.of(context).pop(), child: const Text('Cancelar')),
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancelar'),
+        ),
         TextButton(
           onPressed: () => Navigator.of(context).pop(_ctrl.text),
           child: const Text('Abonar'),
@@ -157,7 +168,11 @@ class _ContributeDialogState extends State<_ContributeDialog> {
 /// Menu de acciones de una meta (Editar/Eliminar). Publica (sin `_`) para
 /// poder invocarla directamente desde los tests de widget, mismo patron que
 /// `showAccountMenu` en `cards_screen.dart`.
-Future<void> showGoalMenu(BuildContext context, WidgetRef ref, SavingsGoal goal) async {
+Future<void> showGoalMenu(
+  BuildContext context,
+  WidgetRef ref,
+  SavingsGoal goal,
+) async {
   final action = await showModalBottomSheet<String>(
     context: context,
     builder: (ctx) => SafeArea(
@@ -170,8 +185,14 @@ Future<void> showGoalMenu(BuildContext context, WidgetRef ref, SavingsGoal goal)
             onTap: () => Navigator.of(ctx).pop('edit'),
           ),
           ListTile(
-            leading: const Icon(Icons.delete_outline, color: FinoraColors.expense),
-            title: const Text('Eliminar', style: TextStyle(color: FinoraColors.expense)),
+            leading: const Icon(
+              Icons.delete_outline,
+              color: FinoraColors.expense,
+            ),
+            title: const Text(
+              'Eliminar',
+              style: TextStyle(color: FinoraColors.expense),
+            ),
             onTap: () => Navigator.of(ctx).pop('delete'),
           ),
         ],
@@ -188,7 +209,9 @@ Future<void> showGoalMenu(BuildContext context, WidgetRef ref, SavingsGoal goal)
         context: context,
         builder: (ctx) => AlertDialog(
           title: const Text('Eliminar meta'),
-          content: Text('¿Eliminar "${goal.name}"? Esta acción no se puede deshacer.'),
+          content: Text(
+            '¿Eliminar "${goal.name}"? Esta acción no se puede deshacer.',
+          ),
           actions: [
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(false),
@@ -196,7 +219,10 @@ Future<void> showGoalMenu(BuildContext context, WidgetRef ref, SavingsGoal goal)
             ),
             TextButton(
               onPressed: () => Navigator.of(ctx).pop(true),
-              child: const Text('Eliminar', style: TextStyle(color: FinoraColors.expense)),
+              child: const Text(
+                'Eliminar',
+                style: TextStyle(color: FinoraColors.expense),
+              ),
             ),
           ],
         ),
@@ -227,7 +253,9 @@ class _EmptyState extends StatelessWidget {
             Text(
               'Aún no tienes metas.\nToca "Nueva meta" para crear la primera.',
               textAlign: TextAlign.center,
-              style: Theme.of(context).textTheme.bodyLarge?.copyWith(color: FinoraColors.textSecondary),
+              style: Theme.of(context).textTheme.bodyLarge?.copyWith(
+                color: FinoraColors.textSecondary,
+              ),
             ),
           ],
         ),
@@ -246,13 +274,16 @@ class _GoalCard extends ConsumerWidget {
   @override
   Widget build(BuildContext context, WidgetRef ref) {
     final color = Color(goal.color);
-    final ratio =
-        goal.targetCents > 0 ? (goal.savedCents / goal.targetCents).clamp(0.0, 1.0) : 0.0;
+    final ratio = goal.targetCents > 0
+        ? (goal.savedCents / goal.targetCents).clamp(0.0, 1.0)
+        : 0.0;
     final percent = (ratio * 100).round();
 
     return Card(
       margin: const EdgeInsets.only(bottom: FinoraTokens.s12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(FinoraTokens.rCard)),
+      shape: RoundedRectangleBorder(
+        borderRadius: BorderRadius.circular(FinoraTokens.rCard),
+      ),
       child: Padding(
         padding: const EdgeInsets.all(FinoraTokens.s16),
         child: Column(
@@ -263,20 +294,24 @@ class _GoalCard extends ConsumerWidget {
                 Container(
                   width: 12,
                   height: 12,
-                  decoration: BoxDecoration(color: color, shape: BoxShape.circle),
+                  decoration: BoxDecoration(
+                    color: color,
+                    shape: BoxShape.circle,
+                  ),
                 ),
                 const SizedBox(width: FinoraTokens.s8),
                 Expanded(
                   child: Text(
                     goal.name,
-                    style: Theme.of(context)
-                        .textTheme
-                        .titleMedium
-                        ?.copyWith(fontWeight: FontWeight.w700),
+                    style: Theme.of(context).textTheme.titleMedium?.copyWith(
+                      fontWeight: FontWeight.w700,
+                    ),
                   ),
                 ),
-                Text('$percent%',
-                    style: TextStyle(fontWeight: FontWeight.w700, color: color)),
+                Text(
+                  '$percent%',
+                  style: TextStyle(fontWeight: FontWeight.w700, color: color),
+                ),
                 IconButton(
                   icon: const Icon(Icons.more_vert),
                   tooltip: 'Más opciones',
@@ -311,11 +346,21 @@ class _GoalCard extends ConsumerWidget {
               const SizedBox(height: FinoraTokens.s4),
               Row(
                 children: [
-                  const Icon(Icons.event, size: 14, color: FinoraColors.textSecondary),
+                  const Icon(
+                    Icons.event,
+                    size: 14,
+                    color: FinoraColors.textSecondary,
+                  ),
                   const SizedBox(width: FinoraTokens.s4),
                   Text(
-                    DateFormat('d MMMM yyyy', 'es').format(toLima(goal.deadline!)),
-                    style: const TextStyle(color: FinoraColors.textSecondary, fontSize: 12),
+                    DateFormat(
+                      'd MMMM yyyy',
+                      'es',
+                    ).format(toLima(goal.deadline!)),
+                    style: const TextStyle(
+                      color: FinoraColors.textSecondary,
+                      fontSize: 12,
+                    ),
                   ),
                 ],
               ),
