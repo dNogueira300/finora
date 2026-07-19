@@ -5,13 +5,10 @@ import 'package:intl/intl.dart';
 
 import '../../core/dates.dart';
 import '../../core/finora_colors.dart';
+import '../../core/finora_tokens.dart';
 import '../../core/money.dart';
 import '../../data/local/database.dart';
 import '../../data/sync/sync_providers.dart';
-
-/// Color de respaldo para una categoria que ya no existe (borrada) pero que
-/// sigue referenciada por transacciones historicas del mes.
-const _fallbackCategoryColor = Color(0xFF6B7280);
 
 /// Mes calendario mostrado por la pantalla (chevrons para navegar). Arranca
 /// en el mes actual.
@@ -35,6 +32,9 @@ final _expenseCategoriesProvider = StreamProvider.autoDispose<List<Category>>((r
 /// Un punto de la serie "Evolucion mensual": gasto e ingreso totales de un
 /// mes calendario (en centavos).
 typedef _MonthPoint = ({DateTime month, int expense, int income});
+
+/// Una porcion ya resuelta del donut/leyenda: color, nombre y monto (centavos).
+typedef _DonutSlice = ({Color color, String name, int cents});
 
 /// Los ultimos 6 meses (incluyendo el mes seleccionado) de gasto vs ingreso.
 final _sixMonthSeriesProvider = FutureProvider.autoDispose<List<_MonthPoint>>((ref) async {
@@ -77,36 +77,36 @@ class StatsScreen extends ConsumerWidget {
       appBar: AppBar(title: const Text('Análisis')),
       body: SafeArea(
         child: ListView(
-          padding: const EdgeInsets.all(16),
+          padding: const EdgeInsets.all(FinoraTokens.s16),
           children: [
             _MonthSelector(
               month: month,
               onPrevious: () => _shiftMonth(ref, -1),
               onNext: () => _shiftMonth(ref, 1),
             ),
-            const SizedBox(height: 16),
+            const SizedBox(height: FinoraTokens.s16),
             Text('Gastos por categoría', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
+            const SizedBox(height: FinoraTokens.s8),
             categoryTotalsAsync.when(
               data: (totals) => _DonutSection(totals: totals, categoriesById: categoriesById),
               loading: () => const Padding(
-                padding: EdgeInsets.symmetric(vertical: 32),
+                padding: EdgeInsets.symmetric(vertical: FinoraTokens.s32),
                 child: Center(child: CircularProgressIndicator()),
               ),
               error: (e, _) => Center(child: Text('No se pudo cargar: $e')),
             ),
-            const SizedBox(height: 24),
+            const SizedBox(height: FinoraTokens.s24),
             Text('Evolución mensual', style: Theme.of(context).textTheme.titleMedium),
-            const SizedBox(height: 8),
+            const SizedBox(height: FinoraTokens.s8),
             seriesAsync.when(
               data: (series) => _MonthlyBarChart(series: series),
               loading: () => const Padding(
-                padding: EdgeInsets.symmetric(vertical: 32),
+                padding: EdgeInsets.symmetric(vertical: FinoraTokens.s32),
                 child: Center(child: CircularProgressIndicator()),
               ),
               error: (e, _) => Center(child: Text('No se pudo cargar: $e')),
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: FinoraTokens.s8),
             const _BarLegend(),
           ],
         ),
@@ -120,6 +120,8 @@ void _shiftMonth(WidgetRef ref, int delta) {
   ref.read(_statsMonthProvider.notifier).state = DateTime(m.year, m.month + delta, 1);
 }
 
+/// Selector de mes: mismo card pill que `_MonthHeader` del calendario (Task 7),
+/// replicado con tokens (sin importar el widget privado).
 class _MonthSelector extends StatelessWidget {
   const _MonthSelector({required this.month, required this.onPrevious, required this.onNext});
   final DateTime month;
@@ -129,21 +131,64 @@ class _MonthSelector extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final label = _capitalize(DateFormat('MMMM yyyy', 'es').format(month));
-    return Row(
-      mainAxisAlignment: MainAxisAlignment.spaceBetween,
-      children: [
-        IconButton(
-          icon: const Icon(Icons.chevron_left),
-          tooltip: 'Mes anterior',
-          onPressed: onPrevious,
-        ),
-        Text(label, style: Theme.of(context).textTheme.titleMedium),
-        IconButton(
-          icon: const Icon(Icons.chevron_right),
-          tooltip: 'Mes siguiente',
-          onPressed: onNext,
-        ),
-      ],
+    return Container(
+      decoration: BoxDecoration(
+        color: FinoraColors.surface,
+        borderRadius: BorderRadius.circular(FinoraTokens.rPill),
+        boxShadow: FinoraTokens.shadowSoft,
+      ),
+      padding: const EdgeInsets.symmetric(
+        horizontal: FinoraTokens.s8,
+        vertical: FinoraTokens.s4,
+      ),
+      child: Row(
+        children: [
+          _ChevronButton(
+            icon: Icons.chevron_left,
+            tooltip: 'Mes anterior',
+            onPressed: onPrevious,
+          ),
+          Expanded(
+            child: Text(
+              label,
+              textAlign: TextAlign.center,
+              style: const TextStyle(
+                fontSize: 18,
+                fontWeight: FontWeight.w700,
+                color: FinoraColors.textPrimary,
+              ),
+            ),
+          ),
+          _ChevronButton(
+            icon: Icons.chevron_right,
+            tooltip: 'Mes siguiente',
+            onPressed: onNext,
+          ),
+        ],
+      ),
+    );
+  }
+}
+
+/// Boton de navegacion de mes: chevron circular con ripple sobre un fondo
+/// suave, dentro del card pill de [_MonthSelector].
+class _ChevronButton extends StatelessWidget {
+  const _ChevronButton({required this.icon, required this.tooltip, required this.onPressed});
+  final IconData icon;
+  final String tooltip;
+  final VoidCallback onPressed;
+
+  @override
+  Widget build(BuildContext context) {
+    return IconButton(
+      icon: Icon(icon),
+      tooltip: tooltip,
+      onPressed: onPressed,
+      color: FinoraColors.textPrimary,
+      style: IconButton.styleFrom(
+        backgroundColor: FinoraColors.background,
+        shape: const CircleBorder(),
+      ),
     );
   }
 }
@@ -161,22 +206,44 @@ class _DonutSection extends StatelessWidget {
     final totalCents = totals.values.fold<int>(0, (a, b) => a + b);
     if (totalCents <= 0) {
       return const Padding(
-        padding: EdgeInsets.symmetric(vertical: 32),
+        padding: EdgeInsets.symmetric(vertical: FinoraTokens.s32),
         child: Center(
-          child: Text(
-            'Sin gastos este mes',
-            style: TextStyle(color: FinoraColors.textSecondary),
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              Icon(Icons.pie_chart_outline, size: 48, color: FinoraColors.textSecondary),
+              SizedBox(height: FinoraTokens.s12),
+              Text(
+                'Sin gastos este mes',
+                style: TextStyle(color: FinoraColors.textSecondary),
+              ),
+            ],
           ),
         ),
       );
     }
 
-    final entries = totals.entries.where((e) => e.value > 0).toList()
-      ..sort((a, b) => b.value.compareTo(a.value));
-
-    Color colorFor(String categoryId) =>
-        categoriesById[categoryId] != null ? Color(categoriesById[categoryId]!.color) : _fallbackCategoryColor;
-    String nameFor(String categoryId) => categoriesById[categoryId]?.name ?? 'Otros';
+    // Categorias resueltas (con su color propio), ordenadas por monto desc.
+    // TODAS las categorias no resueltas (soft-deleted / inexistentes) se
+    // agrupan en un UNICO bucket "Otros" gris neutro (fix minor T18): antes
+    // cada categoryId huerfano generaba su propia fila y su propia porcion.
+    final resolved = <_DonutSlice>[];
+    var otrosCents = 0;
+    for (final e in totals.entries) {
+      if (e.value <= 0) continue;
+      final cat = categoriesById[e.key];
+      if (cat != null) {
+        resolved.add((color: Color(cat.color), name: cat.name, cents: e.value));
+      } else {
+        otrosCents += e.value;
+      }
+    }
+    resolved.sort((a, b) => b.cents.compareTo(a.cents));
+    final slices = <_DonutSlice>[
+      ...resolved,
+      if (otrosCents > 0)
+        (color: FinoraColors.neutral, name: 'Otros', cents: otrosCents),
+    ];
 
     return Column(
       children: [
@@ -188,16 +255,20 @@ class _DonutSection extends StatelessWidget {
               PieChart(
                 PieChartData(
                   sections: [
-                    for (final e in entries)
+                    for (final s in slices)
                       PieChartSectionData(
-                        value: e.value / 100,
-                        color: colorFor(e.key),
+                        value: s.cents / 100,
+                        color: s.color,
                         showTitle: false,
                       ),
                   ],
                   centerSpaceRadius: 70,
                   sectionsSpace: 2,
                 ),
+                // Animacion de entrada/transicion "gratis" de fl_chart (sin
+                // timers propios): interpola al cambiar de mes.
+                duration: FinoraTokens.dSlow,
+                curve: FinoraTokens.curve,
               ),
               Column(
                 mainAxisSize: MainAxisSize.min,
@@ -215,13 +286,13 @@ class _DonutSection extends StatelessWidget {
             ],
           ),
         ),
-        const SizedBox(height: 16),
-        for (final e in entries)
+        const SizedBox(height: FinoraTokens.s16),
+        for (final s in slices)
           _CategoryLegendRow(
-            color: colorFor(e.key),
-            name: nameFor(e.key),
-            cents: e.value,
-            percent: ((e.value / totalCents) * 100).round(),
+            color: s.color,
+            name: s.name,
+            cents: s.cents,
+            percent: ((s.cents / totalCents) * 100).round(),
           ),
       ],
     );
@@ -246,7 +317,7 @@ class _CategoryLegendRow extends StatelessWidget {
       padding: const EdgeInsets.symmetric(vertical: 6),
       child: Row(
         children: [
-          Container(width: 12, height: 12, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
+          Container(width: 10, height: 10, decoration: BoxDecoration(color: color, shape: BoxShape.circle)),
           const SizedBox(width: 10),
           Expanded(child: Text(name)),
           Text(formatMoney(cents), style: const TextStyle(fontWeight: FontWeight.w600)),
@@ -266,7 +337,8 @@ class _CategoryLegendRow extends StatelessWidget {
 }
 
 /// Barras "Evolución mensual": dos barras por mes (gasto rojo, ingreso
-/// verde), eje X con las iniciales del mes en español.
+/// verde), eje X con las iniciales del mes en español, grid horizontal sutil
+/// y tooltip con el monto formateado al tocar una barra.
 class _MonthlyBarChart extends StatelessWidget {
   const _MonthlyBarChart({required this.series});
   final List<_MonthPoint> series;
@@ -278,8 +350,28 @@ class _MonthlyBarChart extends StatelessWidget {
       child: BarChart(
         BarChartData(
           alignment: BarChartAlignment.spaceAround,
-          gridData: const FlGridData(show: false),
+          gridData: FlGridData(
+            show: true,
+            drawVerticalLine: false,
+            getDrawingHorizontalLine: (_) => FlLine(
+              color: FinoraColors.border.withValues(alpha: 0.5),
+              strokeWidth: 1,
+            ),
+          ),
           borderData: FlBorderData(show: false),
+          barTouchData: BarTouchData(
+            touchTooltipData: BarTouchTooltipData(
+              getTooltipColor: (_) => FinoraColors.textPrimary,
+              getTooltipItem: (group, groupIndex, rod, rodIndex) => BarTooltipItem(
+                formatMoney((rod.toY * 100).round()),
+                const TextStyle(
+                  color: FinoraColors.surface,
+                  fontWeight: FontWeight.w600,
+                  fontSize: 12,
+                ),
+              ),
+            ),
+          ),
           titlesData: FlTitlesData(
             topTitles: const AxisTitles(),
             rightTitles: const AxisTitles(),
@@ -291,7 +383,13 @@ class _MonthlyBarChart extends StatelessWidget {
                   final i = value.toInt();
                   if (i < 0 || i >= series.length) return const SizedBox.shrink();
                   final label = _capitalize(DateFormat.MMM('es').format(series[i].month));
-                  return SideTitleWidget(meta: meta, child: Text(label));
+                  return SideTitleWidget(
+                    meta: meta,
+                    child: Text(
+                      label,
+                      style: const TextStyle(color: FinoraColors.textSecondary, fontSize: 11),
+                    ),
+                  );
                 },
               ),
             ),
@@ -317,6 +415,8 @@ class _MonthlyBarChart extends StatelessWidget {
               ),
           ],
         ),
+        duration: FinoraTokens.dSlow,
+        curve: FinoraTokens.curve,
       ),
     );
   }

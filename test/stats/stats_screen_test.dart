@@ -72,6 +72,14 @@ void main() {
     ));
   }
 
+  // Marca una categoria ya sembrada como soft-deleted (deletedAt != null),
+  // tal como la deja el borrado logico en la app: sus transacciones historicas
+  // siguen existiendo pero `watchByKind` ya no la resuelve.
+  Future<void> softDeleteCategory(String id) {
+    return (db.update(db.categories)..where((c) => c.id.equals(id)))
+        .write(CategoriesCompanion(deletedAt: Value(DateTime.now().toUtc())));
+  }
+
   Future<void> seedTxn({
     required String id,
     required String categoryId,
@@ -129,6 +137,57 @@ void main() {
     expect(find.text('Transporte'), findsOneWidget);
     expect(find.text(formatMoney(4000)), findsOneWidget);
     expect(find.text('40%'), findsOneWidget);
+
+    await tester.pumpWidget(const SizedBox());
+    await tester.pump(const Duration(seconds: 1));
+  });
+
+  testWidgets(
+      'las categorias soft-deleted se agrupan en UNA sola fila "Otros" en la '
+      'leyenda con la suma de sus montos (fix minor T18)', (tester) async {
+    await growTestSurface(tester);
+    final month = currentStatsMonth();
+
+    // Una categoria viva y DOS categorias soft-deleted, cada una con gasto.
+    await seedCategory('catFood', 'Comida', 0xFFEF4444);
+    await seedCategory('catGhostA', 'Fantasma A', 0xFF3B82F6);
+    await seedCategory('catGhostB', 'Fantasma B', 0xFF8B5CF6);
+    await seedTxn(
+      id: 't1',
+      categoryId: 'catFood',
+      kind: 'expense',
+      amountCents: 5000,
+      occurredAt: midMonthUtc(month),
+    );
+    await seedTxn(
+      id: 't2',
+      categoryId: 'catGhostA',
+      kind: 'expense',
+      amountCents: 3000,
+      occurredAt: midMonthUtc(month),
+    );
+    await seedTxn(
+      id: 't3',
+      categoryId: 'catGhostB',
+      kind: 'expense',
+      amountCents: 2000,
+      occurredAt: midMonthUtc(month),
+    );
+    await softDeleteCategory('catGhostA');
+    await softDeleteCategory('catGhostB');
+
+    await tester.pumpWidget(buildApp());
+    await tester.pumpAndSettle();
+
+    // Una sola fila "Otros" con la suma de ambas soft-deleted (3000 + 2000).
+    expect(find.text('Otros'), findsOneWidget);
+    expect(find.text(formatMoney(5000)), findsWidgets); // Comida y Otros (misma suma)
+    expect(find.text('50%'), findsWidgets); // Comida 50% y Otros 50%
+    // Los nombres de las categorias borradas no aparecen.
+    expect(find.text('Fantasma A'), findsNothing);
+    expect(find.text('Fantasma B'), findsNothing);
+    // La categoria viva sigue con su propia fila.
+    expect(find.text('Comida'), findsOneWidget);
 
     await tester.pumpWidget(const SizedBox());
     await tester.pump(const Duration(seconds: 1));

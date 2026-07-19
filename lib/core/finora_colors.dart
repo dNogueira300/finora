@@ -9,6 +9,9 @@ abstract final class FinoraColors {
   static const textPrimary = Color(0xFF1F2937);
   static const textSecondary = Color(0xFF6B7280);
   static const border = Color(0xFFE5E7EB);
+  /// Gris neutro para datos sin identidad propia (p. ej. el bucket agrupado
+  /// "Otros" del donut de estadisticas: categorias borradas/no resueltas).
+  static const neutral = Color(0xFF9CA3AF);
   static const income = Color(0xFF22C55E);
   static const expense = Color(0xFFEF4444);
   static const savings = Color(0xFF3B82F6);
