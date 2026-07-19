@@ -141,6 +141,8 @@ void main() {
 
     expect(find.text('Seguridad'), findsNothing);
     expect(find.text('Desbloqueo con huella'), findsNothing);
+    // Los titulos de grupo se renderizan en mayusculas (12 bold uppercase).
+    expect(find.text('ALERTAS'), findsOneWidget);
 
     await drainTimers(tester);
   });

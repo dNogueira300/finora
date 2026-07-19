@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/dates.dart';
 import '../../core/finora_colors.dart';
+import '../../core/finora_tokens.dart';
 import '../../core/money.dart';
 import '../../data/local/database.dart';
 import '../../data/sync/sync_providers.dart';
@@ -30,8 +31,12 @@ class GoalsScreen extends ConsumerWidget {
         heroTag: 'goals-new-fab',
         onPressed: () => _openEditSheet(context),
         backgroundColor: FinoraColors.primary,
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text('Nueva meta', style: TextStyle(color: Colors.white)),
+        foregroundColor: Colors.white,
+        shape: const StadiumBorder(),
+        label: const Text(
+          '+ Nueva meta',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+        ),
       ),
       body: SafeArea(
         child: goalsAsync.when(
@@ -220,39 +225,47 @@ class _EmptyState extends StatelessWidget {
   }
 }
 
-/// Card de una meta: nombre, porcentaje, barra de progreso verde, monto
-/// ahorrado/objetivo, fecha limite (si tiene) y botones "Abonar" + menu.
+/// Card de una meta: dot + nombre + porcentaje (en el color de la meta),
+/// barra de progreso alta con relleno del color de la meta, monto ahorrado
+/// (en negrita) "de" objetivo, fecha limite (si tiene) y "Abonar" + menu.
 class _GoalCard extends ConsumerWidget {
   const _GoalCard({required this.goal});
   final SavingsGoal goal;
 
   @override
   Widget build(BuildContext context, WidgetRef ref) {
+    final color = Color(goal.color);
     final ratio =
         goal.targetCents > 0 ? (goal.savedCents / goal.targetCents).clamp(0.0, 1.0) : 0.0;
     final percent = (ratio * 100).round();
 
     return Card(
-      margin: const EdgeInsets.only(bottom: 12),
-      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+      margin: const EdgeInsets.only(bottom: FinoraTokens.s12),
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(FinoraTokens.rCard)),
       child: Padding(
-        padding: const EdgeInsets.all(16),
+        padding: const EdgeInsets.all(FinoraTokens.s16),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                CircleAvatar(
-                  backgroundColor: Color(goal.color),
-                  radius: 16,
-                  child: const Icon(Icons.savings_rounded, color: Colors.white, size: 18),
+                Container(
+                  width: 12,
+                  height: 12,
+                  decoration: BoxDecoration(color: color, shape: BoxShape.circle),
                 ),
-                const SizedBox(width: 12),
+                const SizedBox(width: FinoraTokens.s8),
                 Expanded(
-                  child: Text(goal.name, style: Theme.of(context).textTheme.titleMedium),
+                  child: Text(
+                    goal.name,
+                    style: Theme.of(context)
+                        .textTheme
+                        .titleMedium
+                        ?.copyWith(fontWeight: FontWeight.w700),
+                  ),
                 ),
                 Text('$percent%',
-                    style: const TextStyle(fontWeight: FontWeight.w700, color: FinoraColors.income)),
+                    style: TextStyle(fontWeight: FontWeight.w700, color: color)),
                 IconButton(
                   icon: const Icon(Icons.more_vert),
                   tooltip: 'Más opciones',
@@ -260,33 +273,48 @@ class _GoalCard extends ConsumerWidget {
                 ),
               ],
             ),
-            const SizedBox(height: 8),
+            const SizedBox(height: FinoraTokens.s8),
             ClipRRect(
-              borderRadius: BorderRadius.circular(4),
+              borderRadius: BorderRadius.circular(FinoraTokens.rPill),
               child: LinearProgressIndicator(
                 value: ratio,
-                minHeight: 8,
+                minHeight: 10,
                 backgroundColor: FinoraColors.border,
-                valueColor: const AlwaysStoppedAnimation(FinoraColors.income),
+                valueColor: AlwaysStoppedAnimation(color),
               ),
             ),
-            const SizedBox(height: 8),
-            Text(
-              '${formatMoney(goal.savedCents)} ahorrado de ${formatMoney(goal.targetCents)}',
-              style: const TextStyle(color: FinoraColors.textSecondary),
+            const SizedBox(height: FinoraTokens.s8),
+            Text.rich(
+              TextSpan(
+                style: const TextStyle(color: FinoraColors.textSecondary),
+                children: [
+                  TextSpan(
+                    text: formatMoney(goal.savedCents),
+                    style: const TextStyle(fontWeight: FontWeight.w700),
+                  ),
+                  TextSpan(text: ' de ${formatMoney(goal.targetCents)}'),
+                ],
+              ),
             ),
             if (goal.deadline != null) ...[
-              const SizedBox(height: 4),
-              Text(
-                'Fecha límite: ${DateFormat('d MMMM yyyy', 'es').format(toLima(goal.deadline!))}',
-                style: const TextStyle(color: FinoraColors.textSecondary, fontSize: 12),
+              const SizedBox(height: FinoraTokens.s4),
+              Row(
+                children: [
+                  const Icon(Icons.event, size: 14, color: FinoraColors.textSecondary),
+                  const SizedBox(width: FinoraTokens.s4),
+                  Text(
+                    DateFormat('d MMMM yyyy', 'es').format(toLima(goal.deadline!)),
+                    style: const TextStyle(color: FinoraColors.textSecondary, fontSize: 12),
+                  ),
+                ],
               ),
             ],
-            const SizedBox(height: 12),
+            const SizedBox(height: FinoraTokens.s12),
             SizedBox(
               width: double.infinity,
-              child: OutlinedButton(
+              child: FilledButton.tonal(
                 onPressed: () => _showContributeDialog(context, ref, goal),
+                style: FilledButton.styleFrom(shape: const StadiumBorder()),
                 child: const Text('Abonar'),
               ),
             ),

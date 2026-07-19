@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../core/dates.dart';
 import '../../core/finora_colors.dart';
+import '../../core/finora_tokens.dart';
 import '../../core/money.dart';
 import '../../data/local/database.dart';
 import '../../data/sync/sync_providers.dart';
@@ -119,6 +120,17 @@ class _EditGoalSheetState extends ConsumerState<EditGoalSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Center(
+              child: Container(
+                width: 32,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: FinoraTokens.s16),
+                decoration: BoxDecoration(
+                  color: FinoraColors.border,
+                  borderRadius: BorderRadius.circular(FinoraTokens.rPill),
+                ),
+              ),
+            ),
             Text(
               widget.goal == null ? 'Nueva meta' : 'Editar meta',
               style: Theme.of(context).textTheme.titleLarge,
@@ -185,7 +197,12 @@ class _EditGoalSheetState extends ConsumerState<EditGoalSheet> {
             const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton(onPressed: _save, child: const Text('Guardar')),
+              height: 56,
+              child: ElevatedButton(
+                onPressed: _save,
+                style: ElevatedButton.styleFrom(shape: const StadiumBorder()),
+                child: const Text('Guardar'),
+              ),
             ),
             const SizedBox(height: 8),
           ],

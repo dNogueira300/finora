@@ -83,7 +83,9 @@ void main() {
     await tester.pumpAndSettle();
 
     expect(find.text('Vacaciones'), findsOneWidget);
-    expect(find.text('S/ 0.00 ahorrado de S/ 1,000.00'), findsOneWidget);
+    // El monto ahorrado se muestra en negrita dentro de un `Text.rich`
+    // ("S/ ahorrado **de** S/ meta"), por eso se busca con `findRichText`.
+    expect(find.text('S/ 0.00 de S/ 1,000.00', findRichText: true), findsOneWidget);
     expect(find.text('0%'), findsOneWidget);
 
     final rows = await db.select(db.savingsGoals).get();
@@ -112,7 +114,7 @@ void main() {
     expect(find.text('Laptop'), findsOneWidget);
     expect(find.text('0%'), findsOneWidget);
 
-    await tester.tap(find.widgetWithText(OutlinedButton, 'Abonar'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Abonar'));
     await tester.pumpAndSettle();
 
     expect(find.byType(AlertDialog), findsOneWidget);
@@ -126,7 +128,7 @@ void main() {
     expect(row.savedCents, 50000);
 
     expect(find.text('14%'), findsOneWidget);
-    expect(find.text('S/ 500.00 ahorrado de S/ 3,500.00'), findsOneWidget);
+    expect(find.text('S/ 500.00 de S/ 3,500.00', findRichText: true), findsOneWidget);
 
     await drainTimers(tester);
   });
@@ -144,7 +146,7 @@ void main() {
     await tester.pumpWidget(buildApp());
     await tester.pumpAndSettle();
 
-    await tester.tap(find.widgetWithText(OutlinedButton, 'Abonar'));
+    await tester.tap(find.widgetWithText(FilledButton, 'Abonar'));
     await tester.pumpAndSettle();
 
     await tester.enterText(find.byType(TextField), 'no-es-un-numero');

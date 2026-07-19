@@ -5,6 +5,8 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/finora_colors.dart';
+import '../../core/finora_tokens.dart';
+import '../../core/finora_widgets.dart';
 import '../../core/money.dart';
 import '../../data/local/database.dart';
 import '../../data/sync/sync_providers.dart';
@@ -208,138 +210,226 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     final syncStatus = ref.watch(syncStatusProvider);
 
     return Scaffold(
-      appBar: AppBar(title: const Text('Perfil')),
-      body: SafeArea(
-        child: _loading
-            ? const Center(child: CircularProgressIndicator())
-            : ListView(
-                padding: const EdgeInsets.all(16),
+      backgroundColor: FinoraColors.background,
+      body: _loading
+          ? const Center(child: CircularProgressIndicator())
+          : SingleChildScrollView(
+              padding: EdgeInsets.zero,
+              child: Column(
                 children: [
-                  _Header(
-                    email: email,
-                    status: syncStatus,
-                    onRetry: () => ref.read(syncTriggerProvider)(),
-                  ),
-                  const SizedBox(height: 24),
-                  if (_biometricAvailable) ...[
-                    const _SectionTitle('Seguridad'),
-                    Card(
-                      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                      child: SwitchListTile(
-                        title: const Text('Desbloqueo con huella'),
-                        value: _biometricEnabled,
-                        onChanged: _onBiometricChanged,
+                  // Cabecera compacta de marca: avatar con inicial, email y
+                  // chip de estado de sincronizacion.
+                  BrandHeader(
+                    padding: EdgeInsets.zero,
+                    child: SafeArea(
+                      bottom: false,
+                      child: Padding(
+                        padding: const EdgeInsets.fromLTRB(
+                          FinoraTokens.s16,
+                          FinoraTokens.s16,
+                          FinoraTokens.s16,
+                          FinoraTokens.s32,
+                        ),
+                        child: _Header(
+                          email: email,
+                          status: syncStatus,
+                          onRetry: () => ref.read(syncTriggerProvider)(),
+                        ),
                       ),
                     ),
-                    const SizedBox(height: 24),
-                  ],
-                  const _SectionTitle('Alertas'),
-                  Card(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    child: Column(
-                      children: [
-                        Padding(
-                          padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
-                          child: TextField(
-                            controller: _limitCtrl,
-                            focusNode: _limitFocus,
-                            keyboardType: const TextInputType.numberWithOptions(decimal: true),
-                            onSubmitted: (_) => _commitLimit(),
-                            decoration: const InputDecoration(
-                              labelText: 'Límite de gasto mensual',
-                              helperText: 'Déjalo vacío para no tener límite',
-                              prefixText: 'S/ ',
-                              border: OutlineInputBorder(),
+                  ),
+                  // La sheet solapa el header subiendo el radio de sus esquinas.
+                  Transform.translate(
+                    offset: const Offset(0, -FinoraTokens.rSheet),
+                    child: ContentSheet(
+                      padding: const EdgeInsets.fromLTRB(
+                        FinoraTokens.s16,
+                        FinoraTokens.s24,
+                        FinoraTokens.s16,
+                        FinoraTokens.s24,
+                      ),
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.stretch,
+                        children: [
+                          if (_biometricAvailable) ...[
+                            const _GroupTitle('Seguridad'),
+                            _GroupCard(children: [
+                              SwitchListTile(
+                                secondary: const _TileIcon(
+                                  Icons.fingerprint,
+                                  FinoraColors.primary,
+                                ),
+                                title: const Text('Desbloqueo con huella'),
+                                value: _biometricEnabled,
+                                onChanged: _onBiometricChanged,
+                              ),
+                            ]),
+                            const SizedBox(height: FinoraTokens.s24),
+                          ],
+                          const _GroupTitle('Alertas'),
+                          _GroupCard(children: [
+                            Padding(
+                              padding: const EdgeInsets.fromLTRB(16, 16, 16, 8),
+                              child: TextField(
+                                controller: _limitCtrl,
+                                focusNode: _limitFocus,
+                                keyboardType:
+                                    const TextInputType.numberWithOptions(decimal: true),
+                                onSubmitted: (_) => _commitLimit(),
+                                decoration: const InputDecoration(
+                                  labelText: 'Límite de gasto mensual',
+                                  helperText: 'Déjalo vacío para no tener límite',
+                                  prefixText: 'S/ ',
+                                  border: OutlineInputBorder(),
+                                ),
+                              ),
                             ),
-                          ),
-                        ),
-                        ListTile(
-                          title: const Text('Avisarme antes del vencimiento'),
-                          subtitle: Text('$_alertDaysBeforeDue días antes'),
-                          trailing: Row(
-                            mainAxisSize: MainAxisSize.min,
-                            children: [
-                              IconButton(
-                                icon: const Icon(Icons.remove_circle_outline),
-                                tooltip: 'Menos días',
-                                onPressed: _alertDaysBeforeDue > _minAlertDays
-                                    ? () => _changeAlertDays(-1)
-                                    : null,
+                            ListTile(
+                              leading: const _TileIcon(
+                                Icons.notifications_active_outlined,
+                                FinoraColors.warning,
                               ),
-                              Text('$_alertDaysBeforeDue'),
-                              IconButton(
-                                icon: const Icon(Icons.add_circle_outline),
-                                tooltip: 'Más días',
-                                onPressed: _alertDaysBeforeDue < _maxAlertDays
-                                    ? () => _changeAlertDays(1)
-                                    : null,
+                              title: const Text('Avisarme antes del vencimiento'),
+                              subtitle: Text('$_alertDaysBeforeDue días antes'),
+                              trailing: Row(
+                                mainAxisSize: MainAxisSize.min,
+                                children: [
+                                  IconButton(
+                                    icon: const Icon(Icons.remove_circle_outline),
+                                    tooltip: 'Menos días',
+                                    onPressed: _alertDaysBeforeDue > _minAlertDays
+                                        ? () => _changeAlertDays(-1)
+                                        : null,
+                                  ),
+                                  Text('$_alertDaysBeforeDue'),
+                                  IconButton(
+                                    icon: const Icon(Icons.add_circle_outline),
+                                    tooltip: 'Más días',
+                                    onPressed: _alertDaysBeforeDue < _maxAlertDays
+                                        ? () => _changeAlertDays(1)
+                                        : null,
+                                  ),
+                                ],
                               ),
-                            ],
-                          ),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  const _SectionTitle('Datos'),
-                  Card(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    child: Column(
-                      children: [
-                        ListTile(
-                          leading: const Icon(Icons.sync, color: FinoraColors.secondary),
-                          title: const Text('Sincronizar ahora'),
-                          onTap: () => ref.read(syncTriggerProvider)(),
-                        ),
-                        ListTile(
-                          leading: const Icon(Icons.savings_rounded, color: FinoraColors.savings),
-                          title: const Text('Metas de ahorro'),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () => context.go('/goals'),
-                        ),
-                        ListTile(
-                          leading:
-                              const Icon(Icons.calendar_today_outlined, color: FinoraColors.primary),
-                          title: const Text('Calendario'),
-                          trailing: const Icon(Icons.chevron_right),
-                          onTap: () => context.push('/calendar'),
-                        ),
-                      ],
-                    ),
-                  ),
-                  const SizedBox(height: 24),
-                  const _SectionTitle('Sesión'),
-                  Card(
-                    shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
-                    child: ListTile(
-                      leading: const Icon(Icons.logout, color: FinoraColors.expense),
-                      title: const Text('Cerrar sesión', style: TextStyle(color: FinoraColors.expense)),
-                      onTap: _confirmSignOut,
+                            ),
+                          ]),
+                          const SizedBox(height: FinoraTokens.s24),
+                          const _GroupTitle('Datos'),
+                          _GroupCard(children: [
+                            ListTile(
+                              leading: const _TileIcon(Icons.sync, FinoraColors.savings),
+                              title: const Text('Sincronizar ahora'),
+                              onTap: () => ref.read(syncTriggerProvider)(),
+                            ),
+                            ListTile(
+                              leading:
+                                  const _TileIcon(Icons.savings_rounded, FinoraColors.savings),
+                              title: const Text('Metas de ahorro'),
+                              trailing: const Icon(Icons.chevron_right),
+                              onTap: () => context.go('/goals'),
+                            ),
+                            ListTile(
+                              leading: const _TileIcon(
+                                Icons.calendar_today_outlined,
+                                FinoraColors.savings,
+                              ),
+                              title: const Text('Calendario'),
+                              trailing: const Icon(Icons.chevron_right),
+                              onTap: () => context.push('/calendar'),
+                            ),
+                          ]),
+                          const SizedBox(height: FinoraTokens.s24),
+                          const _GroupTitle('Sesión'),
+                          _GroupCard(children: [
+                            ListTile(
+                              leading: const _TileIcon(Icons.logout, FinoraColors.expense),
+                              title: const Text('Cerrar sesión',
+                                  style: TextStyle(color: FinoraColors.expense)),
+                              onTap: _confirmSignOut,
+                            ),
+                          ]),
+                        ],
+                      ),
                     ),
                   ),
                 ],
               ),
-      ),
+            ),
     );
   }
 }
 
-class _SectionTitle extends StatelessWidget {
-  const _SectionTitle(this.title);
+/// Titulo de grupo de ajustes: 12 bold en mayusculas, textSecondary.
+class _GroupTitle extends StatelessWidget {
+  const _GroupTitle(this.title);
   final String title;
 
   @override
   Widget build(BuildContext context) {
     return Padding(
-      padding: const EdgeInsets.only(bottom: 8),
-      child: Text(title, style: Theme.of(context).textTheme.titleMedium),
+      padding: const EdgeInsets.only(
+        left: FinoraTokens.s4,
+        bottom: FinoraTokens.s8,
+      ),
+      child: Text(
+        title.toUpperCase(),
+        style: const TextStyle(
+          fontSize: 12,
+          fontWeight: FontWeight.w700,
+          color: FinoraColors.textSecondary,
+          letterSpacing: 0.6,
+        ),
+      ),
     );
   }
 }
 
-/// Header de la pantalla: avatar con la inicial del email, email y estado de
-/// sincronizacion. En estado `error` el texto es tocable y reintenta
-/// (`SyncCoordinator.trigger`).
+/// Card unica que agrupa los `ListTile`s de una seccion, con divisores
+/// internos entre cada uno (radio [FinoraTokens.rCard]).
+class _GroupCard extends StatelessWidget {
+  const _GroupCard({required this.children});
+  final List<Widget> children;
+
+  @override
+  Widget build(BuildContext context) {
+    final rows = <Widget>[];
+    for (var i = 0; i < children.length; i++) {
+      if (i > 0) rows.add(const Divider(height: 1));
+      rows.add(children[i]);
+    }
+    return Card(
+      margin: EdgeInsets.zero,
+      clipBehavior: Clip.antiAlias,
+      shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(FinoraTokens.rCard)),
+      child: Column(children: rows),
+    );
+  }
+}
+
+/// Icono de tile en un squircle 36 con fondo al 15% del color de dominio.
+class _TileIcon extends StatelessWidget {
+  const _TileIcon(this.icon, this.color);
+  final IconData icon;
+  final Color color;
+
+  @override
+  Widget build(BuildContext context) {
+    return Container(
+      width: 36,
+      height: 36,
+      alignment: Alignment.center,
+      decoration: BoxDecoration(
+        color: Color.alphaBlend(color.withValues(alpha: 0.15), FinoraColors.surface),
+        borderRadius: BorderRadius.circular(FinoraTokens.rInput),
+      ),
+      child: Icon(icon, color: color, size: 20),
+    );
+  }
+}
+
+/// Header compacto: avatar con la inicial del email (sobre blanco20), email
+/// en blanco y estado de sincronizacion como chip. En estado `error` el chip
+/// es tocable y reintenta (`SyncCoordinator.trigger`).
 class _Header extends StatelessWidget {
   const _Header({required this.email, required this.status, required this.onRetry});
   final String? email;
@@ -353,21 +443,32 @@ class _Header extends StatelessWidget {
       children: [
         CircleAvatar(
           radius: 28,
-          backgroundColor: FinoraColors.primary,
-          child: Text(initial, style: const TextStyle(color: Colors.white, fontSize: 22)),
+          backgroundColor: Colors.white.withValues(alpha: 0.2),
+          child: Text(
+            initial,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 22,
+              fontWeight: FontWeight.w700,
+            ),
+          ),
         ),
-        const SizedBox(width: 16),
+        const SizedBox(width: FinoraTokens.s16),
         Expanded(
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
               Text(
                 email ?? 'Sin sesión',
-                style: Theme.of(context).textTheme.titleMedium,
+                style: const TextStyle(
+                  color: Colors.white,
+                  fontSize: 16,
+                  fontWeight: FontWeight.w600,
+                ),
                 overflow: TextOverflow.ellipsis,
               ),
-              const SizedBox(height: 4),
-              _SyncStatusLabel(status: status, onRetry: onRetry),
+              const SizedBox(height: FinoraTokens.s8),
+              _SyncStatusChip(status: status, onRetry: onRetry),
             ],
           ),
         ),
@@ -376,29 +477,49 @@ class _Header extends StatelessWidget {
   }
 }
 
-class _SyncStatusLabel extends StatelessWidget {
-  const _SyncStatusLabel({required this.status, required this.onRetry});
+/// Chip pill (blanco20) con un dot de estado y la etiqueta de sincronizacion:
+/// verde=Sincronizado, ambar=Sincronizando, gris=Sin conexion, rojo=Error
+/// (tocable para reintentar).
+class _SyncStatusChip extends StatelessWidget {
+  const _SyncStatusChip({required this.status, required this.onRetry});
   final SyncStatus status;
   final VoidCallback onRetry;
 
   @override
   Widget build(BuildContext context) {
-    final (icon, color, label) = switch (status) {
-      SyncStatus.idle => (Icons.cloud_done, FinoraColors.income, 'Sincronizado'),
-      SyncStatus.syncing => (Icons.sync, FinoraColors.secondary, 'Sincronizando…'),
-      SyncStatus.offline => (Icons.cloud_off, FinoraColors.textSecondary, 'Sin conexión'),
-      SyncStatus.error =>
-        (Icons.cloud_off, FinoraColors.expense, 'Error — toca para reintentar'),
+    final (dotColor, label) = switch (status) {
+      SyncStatus.idle => (FinoraColors.income, 'Sincronizado'),
+      SyncStatus.syncing => (FinoraColors.warning, 'Sincronizando…'),
+      SyncStatus.offline => (FinoraColors.neutral, 'Sin conexión'),
+      SyncStatus.error => (FinoraColors.expense, 'Error — toca para reintentar'),
     };
-    final content = Row(
-      mainAxisSize: MainAxisSize.min,
-      children: [
-        Icon(icon, size: 16, color: color),
-        const SizedBox(width: 4),
-        Text(label, style: TextStyle(color: color, fontSize: 13)),
-      ],
+    final chip = Container(
+      padding: const EdgeInsets.symmetric(horizontal: FinoraTokens.s12, vertical: 6),
+      decoration: BoxDecoration(
+        color: Colors.white.withValues(alpha: 0.2),
+        borderRadius: BorderRadius.circular(FinoraTokens.rPill),
+      ),
+      child: Row(
+        mainAxisSize: MainAxisSize.min,
+        children: [
+          Container(
+            width: 8,
+            height: 8,
+            decoration: BoxDecoration(color: dotColor, shape: BoxShape.circle),
+          ),
+          const SizedBox(width: FinoraTokens.s8),
+          Text(
+            label,
+            style: const TextStyle(
+              color: Colors.white,
+              fontSize: 12,
+              fontWeight: FontWeight.w600,
+            ),
+          ),
+        ],
+      ),
     );
-    if (status != SyncStatus.error) return content;
-    return GestureDetector(onTap: onRetry, child: content);
+    if (status != SyncStatus.error) return chip;
+    return GestureDetector(onTap: onRetry, child: chip);
   }
 }
