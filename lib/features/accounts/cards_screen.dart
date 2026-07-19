@@ -4,6 +4,8 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/finora_colors.dart';
+import '../../core/finora_tokens.dart';
+import '../../core/finora_widgets.dart';
 import '../../core/money.dart';
 import '../../data/local/database.dart';
 import '../../data/sync/sync_providers.dart';
@@ -99,8 +101,12 @@ class _CardsScreenState extends ConsumerState<CardsScreen> {
         heroTag: 'cards-new-account-fab',
         onPressed: () => _openEditSheet(context),
         backgroundColor: FinoraColors.primary,
-        icon: const Icon(Icons.add, color: Colors.white),
-        label: const Text('Nueva cuenta', style: TextStyle(color: Colors.white)),
+        foregroundColor: Colors.white,
+        shape: const StadiumBorder(),
+        label: const Text(
+          '+ Nueva cuenta',
+          style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
+        ),
       ),
       body: SafeArea(
         child: accountsAsync.when(
@@ -112,12 +118,16 @@ class _CardsScreenState extends ConsumerState<CardsScreen> {
                 accounts.where((a) => a.type == 'credit' || a.type == 'debit').toList();
             final walletAccounts =
                 accounts.where((a) => a.type == 'cash' || a.type == 'wallet').toList();
+            // Se observa la pagina actual para pintar los dots del carrusel.
+            // No recrea el `PageController` (esta cacheado en `_pageController`):
+            // solo reconstruye el arbol y los dots reflejan el swipe.
+            final currentPage = ref.watch(_carouselPageProvider);
             return ListView(
-              padding: const EdgeInsets.all(16),
+              padding: const EdgeInsets.all(FinoraTokens.s16),
               children: [
                 if (cardAccounts.isNotEmpty) ...[
-                  Text('Tarjetas', style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 8),
+                  const SectionHeader('Tarjetas'),
+                  const SizedBox(height: FinoraTokens.s12),
                   SizedBox(
                     height: 190,
                     child: PageView(
@@ -136,11 +146,18 @@ class _CardsScreenState extends ConsumerState<CardsScreen> {
                       ],
                     ),
                   ),
-                  const SizedBox(height: 24),
+                  if (cardAccounts.length > 1) ...[
+                    const SizedBox(height: FinoraTokens.s12),
+                    _PageDots(
+                      count: cardAccounts.length,
+                      active: currentPage.clamp(0, cardAccounts.length - 1),
+                    ),
+                  ],
+                  const SizedBox(height: FinoraTokens.s24),
                 ],
                 if (walletAccounts.isNotEmpty) ...[
-                  Text('Efectivo y billeteras', style: Theme.of(context).textTheme.titleMedium),
-                  const SizedBox(height: 8),
+                  const SectionHeader('Efectivo y billeteras'),
+                  const SizedBox(height: FinoraTokens.s12),
                   for (final a in walletAccounts)
                     _WalletTile(
                       account: a,
@@ -302,13 +319,24 @@ class _AccountCard extends ConsumerWidget {
                 const Icon(Icons.contactless, color: Colors.white70),
               ],
             ),
-            Text(accountTypeLabel(account.type), style: const TextStyle(color: Colors.white70, fontSize: 12)),
+            const SizedBox(height: FinoraTokens.s8),
+            Container(
+              padding: const EdgeInsets.symmetric(horizontal: FinoraTokens.s8, vertical: FinoraTokens.s4),
+              decoration: BoxDecoration(
+                color: Colors.white.withValues(alpha: .2),
+                borderRadius: BorderRadius.circular(FinoraTokens.rPill),
+              ),
+              child: Text(
+                accountTypeLabel(account.type),
+                style: const TextStyle(color: Colors.white, fontSize: 11, fontWeight: FontWeight.w600),
+              ),
+            ),
             const Spacer(),
             Text(
               '****  ****  ****  ${account.last4 ?? '----'}',
               style: const TextStyle(color: Colors.white, fontSize: 18, letterSpacing: 2),
             ),
-            const SizedBox(height: 12),
+            const SizedBox(height: FinoraTokens.s12),
             FutureBuilder<int>(
               future: db.accountsDao.balanceCents(account.id),
               builder: (context, snapshot) {
@@ -323,7 +351,10 @@ class _AccountCard extends ConsumerWidget {
                 final barColor = ratio > 0.9
                     ? FinoraColors.expense
                     : (ratio > 0.7 ? FinoraColors.warning : Colors.white);
-                final disponible = limit - usado;
+                // Fix visual minor T16: si lo usado es negativo (un pago dejo la
+                // linea "a favor"), el disponible no puede exceder el limite; se
+                // acota en pantalla sin tocar el valor calculado/persistido.
+                final disponible = usado < 0 ? limit : limit - usado;
                 return Column(
                   crossAxisAlignment: CrossAxisAlignment.start,
                   children: [
@@ -350,6 +381,36 @@ class _AccountCard extends ConsumerWidget {
   }
 }
 
+/// Indicador de pagina del carrusel: un punto por tarjeta. El activo es una
+/// pildora alargada primary (16x6); los inactivos, un circulo con borde (6x6).
+class _PageDots extends StatelessWidget {
+  const _PageDots({required this.count, required this.active});
+  final int count;
+  final int active;
+
+  @override
+  Widget build(BuildContext context) {
+    return Row(
+      mainAxisAlignment: MainAxisAlignment.center,
+      children: [
+        for (var i = 0; i < count; i++)
+          AnimatedContainer(
+            duration: FinoraTokens.dFast,
+            curve: FinoraTokens.curve,
+            margin: const EdgeInsets.symmetric(horizontal: FinoraTokens.s4),
+            width: i == active ? 16 : 6,
+            height: 6,
+            decoration: BoxDecoration(
+              color: i == active ? FinoraColors.primary : Colors.transparent,
+              borderRadius: BorderRadius.circular(FinoraTokens.rPill),
+              border: i == active ? null : Border.all(color: FinoraColors.border),
+            ),
+          ),
+      ],
+    );
+  }
+}
+
 /// Fila de lista para una cuenta `cash`/`wallet` con su saldo actual.
 class _WalletTile extends ConsumerWidget {
   const _WalletTile({required this.account, required this.onLongPress});
@@ -362,14 +423,20 @@ class _WalletTile extends ConsumerWidget {
     return GestureDetector(
       onLongPress: onLongPress,
       child: Card(
-        margin: const EdgeInsets.only(bottom: 12),
-        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(16)),
+        margin: const EdgeInsets.only(bottom: FinoraTokens.s12),
+        shape: RoundedRectangleBorder(borderRadius: BorderRadius.circular(FinoraTokens.rInput)),
         child: ListTile(
-          leading: CircleAvatar(
-            backgroundColor: Color(account.color),
+          leading: Container(
+            width: 40,
+            height: 40,
+            decoration: BoxDecoration(
+              color: Color(account.color),
+              borderRadius: BorderRadius.circular(FinoraTokens.rInput),
+            ),
             child: Icon(
               account.type == 'wallet' ? Icons.account_balance_wallet : Icons.payments,
               color: Colors.white,
+              size: 20,
             ),
           ),
           title: Text(account.name),

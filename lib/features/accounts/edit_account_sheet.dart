@@ -1,9 +1,11 @@
 import 'package:drift/drift.dart' hide Column;
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../core/finora_colors.dart';
+import '../../core/finora_tokens.dart';
 import '../../core/money.dart';
 import '../../data/local/database.dart';
 import '../../data/sync/sync_providers.dart';
@@ -161,6 +163,17 @@ class _EditAccountSheetState extends ConsumerState<EditAccountSheet> {
           mainAxisSize: MainAxisSize.min,
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
+            Center(
+              child: Container(
+                width: 32,
+                height: 4,
+                margin: const EdgeInsets.only(bottom: FinoraTokens.s16),
+                decoration: BoxDecoration(
+                  color: FinoraColors.border,
+                  borderRadius: BorderRadius.circular(FinoraTokens.rPill),
+                ),
+              ),
+            ),
             Text(
               widget.account == null ? 'Nueva cuenta' : 'Editar cuenta',
               style: Theme.of(context).textTheme.titleLarge,
@@ -205,8 +218,12 @@ class _EditAccountSheetState extends ConsumerState<EditAccountSheet> {
                     child: TextField(
                       controller: _statementDayCtrl,
                       keyboardType: TextInputType.number,
+                      maxLength: 2,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       decoration: const InputDecoration(
-                          labelText: 'Día de cierre', border: OutlineInputBorder()),
+                          labelText: 'Día de cierre',
+                          counterText: '',
+                          border: OutlineInputBorder()),
                     ),
                   ),
                   const SizedBox(width: 12),
@@ -214,8 +231,12 @@ class _EditAccountSheetState extends ConsumerState<EditAccountSheet> {
                     child: TextField(
                       controller: _paymentDueDayCtrl,
                       keyboardType: TextInputType.number,
+                      maxLength: 2,
+                      inputFormatters: [FilteringTextInputFormatter.digitsOnly],
                       decoration: const InputDecoration(
-                          labelText: 'Día de pago', border: OutlineInputBorder()),
+                          labelText: 'Día de pago',
+                          counterText: '',
+                          border: OutlineInputBorder()),
                     ),
                   ),
                 ],
@@ -279,7 +300,14 @@ class _EditAccountSheetState extends ConsumerState<EditAccountSheet> {
             const SizedBox(height: 24),
             SizedBox(
               width: double.infinity,
-              child: ElevatedButton(onPressed: _save, child: const Text('Guardar')),
+              height: 56,
+              child: ElevatedButton(
+                onPressed: _save,
+                style: ElevatedButton.styleFrom(
+                  shape: const StadiumBorder(),
+                ),
+                child: const Text('Guardar'),
+              ),
             ),
             const SizedBox(height: 8),
           ],

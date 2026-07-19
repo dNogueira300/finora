@@ -257,6 +257,82 @@ void main() {
     await drainTimers(tester);
   });
 
+  testWidgets('el FAB muestra la etiqueta exacta "+ Nueva cuenta"', (tester) async {
+    await growTestSurface(tester);
+    await tester.pumpWidget(buildApp());
+    await tester.pumpAndSettle();
+
+    expect(find.widgetWithText(FloatingActionButton, '+ Nueva cuenta'), findsOneWidget);
+
+    await drainTimers(tester);
+  });
+
+  testWidgets(
+      'los campos de dia (cierre/pago) rechazan letras y quedan vacios',
+      (tester) async {
+    await growTestSurface(tester);
+    await tester.pumpWidget(buildApp());
+    await tester.pumpAndSettle();
+
+    await tester.tap(find.byType(FloatingActionButton));
+    await tester.pumpAndSettle();
+
+    // Selecciona el tipo "Crédito" para revelar los campos de dia.
+    await tester.tap(find.widgetWithText(ChoiceChip, 'Crédito'));
+    await tester.pumpAndSettle();
+
+    final closeDayField = find.byWidgetPredicate(
+        (w) => w is TextField && w.decoration?.labelText == 'Día de cierre');
+    final payDayField = find.byWidgetPredicate(
+        (w) => w is TextField && w.decoration?.labelText == 'Día de pago');
+    expect(closeDayField, findsOneWidget);
+    expect(payDayField, findsOneWidget);
+
+    await tester.enterText(closeDayField, 'ab');
+    await tester.enterText(payDayField, 'xy');
+    await tester.pump();
+
+    expect(tester.widget<TextField>(closeDayField).controller?.text, isEmpty);
+    expect(tester.widget<TextField>(payDayField).controller?.text, isEmpty);
+
+    await drainTimers(tester);
+  });
+
+  testWidgets(
+      'con usado < 0 (pago > gastos) "Disponible" se muestra acotado al limite',
+      (tester) async {
+    await growTestSurface(tester);
+    await db.accountsDao.upsert(AccountsCompanion.insert(
+      id: 'cc1',
+      name: 'Visa Oro',
+      type: 'credit',
+      creditLimitCents: const Value(100000), // S/ 1,000.00
+      last4: const Value('4242'),
+      updatedAt: DateTime.now().toUtc(),
+    ));
+
+    // Un pago (income) sin gastos previos deja lo usado en negativo
+    // (usado = -200): el disponible calculado seria S/ 1,200.00, pero en
+    // pantalla debe acotarse al limite (S/ 1,000.00).
+    await db.transactionsDao.insertTxn(TransactionsCompanion.insert(
+      id: 't1',
+      accountId: 'cc1',
+      categoryId: 'c1',
+      kind: 'income',
+      amountCents: 20000,
+      occurredAt: DateTime.now().toUtc(),
+      updatedAt: DateTime.now().toUtc(),
+    ));
+
+    await tester.pumpWidget(buildApp());
+    await tester.pumpAndSettle();
+
+    expect(find.text('Disponible: S/ 1,000.00'), findsOneWidget);
+    expect(find.text('Disponible: S/ 1,200.00'), findsNothing);
+
+    await drainTimers(tester);
+  });
+
   testWidgets(
       'el carrusel conserva la pagina tras un rebuild disparado por una transaccion nueva',
       (tester) async {
