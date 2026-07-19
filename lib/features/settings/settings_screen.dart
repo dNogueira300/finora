@@ -37,6 +37,24 @@ final currentUserEmailProvider = Provider<String?>((ref) {
   }
 });
 
+/// Alias del usuario para saludos y cabeceras: el metadato `alias` si el
+/// usuario lo configuro (Perfil > lapiz junto al nombre), o la parte local
+/// del email como valor inicial. Observa [authStateProvider] para
+/// recalcularse cuando llega el evento `userUpdated` tras editar el alias.
+/// Mismo criterio de try/catch que [currentUserIdProvider] para los tests.
+final currentUserAliasProvider = Provider<String?>((ref) {
+  ref.watch(authStateProvider);
+  try {
+    final user = Supabase.instance.client.auth.currentUser;
+    if (user == null) return null;
+    final alias = user.userMetadata?['alias'];
+    if (alias is String && alias.trim().isNotEmpty) return alias.trim();
+    return user.email?.split('@').first;
+  } on Object {
+    return null;
+  }
+});
+
 /// Indireccion sobre `AuthRepository.signOut` para poder testear el flujo de
 /// "Cerrar sesión" sin construir un `SupabaseClient` real (lo que exigiria
 /// `Supabase.initialize()` en el test). En produccion delega directamente en
@@ -181,6 +199,28 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
         ref.read(databaseProvider), ref.read(notificationsServiceProvider));
   }
 
+  /// Abre el dialogo de edicion del alias y lo persiste en los metadatos de
+  /// auth ([AuthRepository.updateAlias]). Requiere conexion (es una llamada a
+  /// Supabase): si falla se informa con un snackbar y no se pierde nada.
+  Future<void> _editAlias() async {
+    final current = ref.read(currentUserAliasProvider) ?? '';
+    final result = await showDialog<String>(
+      context: context,
+      builder: (_) => _AliasDialog(initial: current),
+    );
+    if (result == null || result.trim().isEmpty || result.trim() == current) {
+      return;
+    }
+    try {
+      await ref.read(authRepositoryProvider).updateAlias(result.trim());
+    } on Object {
+      if (mounted) {
+        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
+            content: Text('No se pudo guardar el alias. Revisa tu conexión.')));
+      }
+    }
+  }
+
   Future<void> _confirmSignOut() async {
     final confirmed = await showDialog<bool>(
       context: context,
@@ -207,6 +247,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
   @override
   Widget build(BuildContext context) {
     final email = ref.watch(currentUserEmailProvider);
+    final alias = ref.watch(currentUserAliasProvider);
     final syncStatus = ref.watch(syncStatusProvider);
 
     return Scaffold(
@@ -231,9 +272,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                           FinoraTokens.s32,
                         ),
                         child: _Header(
+                          alias: alias,
                           email: email,
                           status: syncStatus,
                           onRetry: () => ref.read(syncTriggerProvider)(),
+                          onEditAlias: _editAlias,
                         ),
                       ),
                     ),
@@ -331,7 +374,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
                                   const _TileIcon(Icons.savings_rounded, FinoraColors.savings),
                               title: const Text('Metas de ahorro'),
                               trailing: const Icon(Icons.chevron_right),
-                              onTap: () => context.go('/goals'),
+                              onTap: () => context.push('/goals'),
                             ),
                             ListTile(
                               leading: const _TileIcon(
@@ -432,18 +475,29 @@ class _TileIcon extends StatelessWidget {
   }
 }
 
-/// Header compacto: avatar con la inicial del email (sobre blanco20), email
-/// en blanco y estado de sincronizacion como chip. En estado `error` el chip
-/// es tocable y reintenta (`SyncCoordinator.trigger`).
+/// Header compacto: avatar con la inicial del alias (sobre blanco20), alias
+/// con lapiz para editarlo, email debajo y estado de sincronizacion como
+/// chip. En estado `error` el chip es tocable y reintenta
+/// (`SyncCoordinator.trigger`).
 class _Header extends StatelessWidget {
-  const _Header({required this.email, required this.status, required this.onRetry});
+  const _Header({
+    required this.alias,
+    required this.email,
+    required this.status,
+    required this.onRetry,
+    required this.onEditAlias,
+  });
+  final String? alias;
   final String? email;
   final SyncStatus status;
   final VoidCallback onRetry;
+  final VoidCallback onEditAlias;
 
   @override
   Widget build(BuildContext context) {
-    final initial = (email != null && email!.isNotEmpty) ? email![0].toUpperCase() : '?';
+    final display = (alias != null && alias!.isNotEmpty) ? alias! : email;
+    final initial =
+        (display != null && display.isNotEmpty) ? display[0].toUpperCase() : '?';
     return Row(
       children: [
         CircleAvatar(
@@ -463,19 +517,94 @@ class _Header extends StatelessWidget {
           child: Column(
             crossAxisAlignment: CrossAxisAlignment.start,
             children: [
-              Text(
-                email ?? 'Sin sesión',
-                style: const TextStyle(
-                  color: Colors.white,
-                  fontSize: 16,
-                  fontWeight: FontWeight.w600,
-                ),
-                overflow: TextOverflow.ellipsis,
+              Row(
+                children: [
+                  Flexible(
+                    child: Text(
+                      display ?? 'Sin sesión',
+                      style: const TextStyle(
+                        color: Colors.white,
+                        fontSize: 16,
+                        fontWeight: FontWeight.w600,
+                      ),
+                      overflow: TextOverflow.ellipsis,
+                    ),
+                  ),
+                  IconButton(
+                    icon: const Icon(Icons.edit_outlined,
+                        color: Colors.white70, size: 18),
+                    tooltip: 'Editar alias',
+                    visualDensity: VisualDensity.compact,
+                    onPressed: onEditAlias,
+                  ),
+                ],
               ),
+              if (email != null && email != display)
+                Text(
+                  email!,
+                  style: const TextStyle(color: Colors.white70, fontSize: 12),
+                  overflow: TextOverflow.ellipsis,
+                ),
               const SizedBox(height: FinoraTokens.s8),
               _SyncStatusChip(status: status, onRetry: onRetry),
             ],
           ),
+        ),
+      ],
+    );
+  }
+}
+
+/// Dialogo de edicion del alias. `StatefulWidget` propio para que el
+/// `TextEditingController` viva y muera con el dialogo (disponer un
+/// controller mientras la ruta todavia anima su cierre congela la UI, misma
+/// leccion que el dialogo de nota en `add_transaction_screen.dart`).
+class _AliasDialog extends StatefulWidget {
+  const _AliasDialog({required this.initial});
+  final String initial;
+
+  @override
+  State<_AliasDialog> createState() => _AliasDialogState();
+}
+
+class _AliasDialogState extends State<_AliasDialog> {
+  late final TextEditingController _ctrl;
+
+  @override
+  void initState() {
+    super.initState();
+    _ctrl = TextEditingController(text: widget.initial);
+  }
+
+  @override
+  void dispose() {
+    _ctrl.dispose();
+    super.dispose();
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return AlertDialog(
+      title: const Text('Editar alias'),
+      content: TextField(
+        controller: _ctrl,
+        autofocus: true,
+        textCapitalization: TextCapitalization.words,
+        maxLength: 40,
+        decoration: const InputDecoration(
+          labelText: 'Alias',
+          helperText: 'Así te saludará la app',
+        ),
+        onSubmitted: (v) => Navigator.of(context).pop(v),
+      ),
+      actions: [
+        TextButton(
+          onPressed: () => Navigator.of(context).pop(),
+          child: const Text('Cancelar'),
+        ),
+        FilledButton(
+          onPressed: () => Navigator.of(context).pop(_ctrl.text),
+          child: const Text('Guardar'),
         ),
       ],
     );

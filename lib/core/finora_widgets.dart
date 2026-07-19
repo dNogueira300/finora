@@ -34,6 +34,79 @@ class BrandHeader extends StatelessWidget {
   }
 }
 
+/// Pagina con cabecera de marca: barra superior sobre el degradado (boton de
+/// volver si la ruta se puede "pop", titulo en blanco y acciones opcionales)
+/// y debajo el contenido sobre [FinoraColors.background] con las esquinas
+/// superiores redondeadas ([FinoraTokens.rSheet]), como la sheet del
+/// dashboard. Pensada como `body` de un `Scaffold` sin `AppBar`.
+class BrandPage extends StatelessWidget {
+  const BrandPage({
+    super.key,
+    required this.title,
+    required this.child,
+    this.actions = const [],
+  });
+
+  final String title;
+  final Widget child;
+  final List<Widget> actions;
+
+  @override
+  Widget build(BuildContext context) {
+    final canPop = Navigator.of(context).canPop();
+    return DecoratedBox(
+      decoration: const BoxDecoration(gradient: FinoraTokens.brandGradient),
+      child: SafeArea(
+        bottom: false,
+        child: Column(
+          crossAxisAlignment: CrossAxisAlignment.stretch,
+          children: [
+            Padding(
+              padding: const EdgeInsets.fromLTRB(
+                FinoraTokens.s8,
+                FinoraTokens.s8,
+                FinoraTokens.s8,
+                FinoraTokens.s16,
+              ),
+              child: Row(
+                children: [
+                  if (canPop)
+                    const BackButton(color: Colors.white)
+                  else
+                    const SizedBox(width: FinoraTokens.s8),
+                  Expanded(
+                    child: Text(
+                      title,
+                      overflow: TextOverflow.ellipsis,
+                      style: const TextStyle(
+                        fontSize: 20,
+                        fontWeight: FontWeight.w700,
+                        color: Colors.white,
+                      ),
+                    ),
+                  ),
+                  ...actions,
+                ],
+              ),
+            ),
+            Expanded(
+              child: ClipRRect(
+                borderRadius: const BorderRadius.vertical(
+                  top: Radius.circular(FinoraTokens.rSheet),
+                ),
+                child: ColoredBox(
+                  color: FinoraColors.background,
+                  child: child,
+                ),
+              ),
+            ),
+          ],
+        ),
+      ),
+    );
+  }
+}
+
 /// Sheet de contenido: envuelve el contenido scrolleable de una pantalla con
 /// fondo [FinoraColors.background] y esquinas superiores redondeadas
 /// ([FinoraTokens.rSheet]), sentandose visualmente sobre el [BrandHeader].

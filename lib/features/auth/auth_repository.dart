@@ -14,4 +14,10 @@ class AuthRepository {
       _client.auth.signUp(email: email, password: password);
 
   Future<void> signOut() => _client.auth.signOut();
+
+  /// Guarda el alias del usuario en los metadatos de auth (`user_metadata`).
+  /// Al completar, Supabase emite un evento `userUpdated` en
+  /// [onAuthStateChange], que refresca los providers que leen el alias.
+  Future<void> updateAlias(String alias) =>
+      _client.auth.updateUser(UserAttributes(data: {'alias': alias}));
 }

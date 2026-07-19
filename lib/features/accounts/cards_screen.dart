@@ -87,16 +87,6 @@ class _CardsScreenState extends ConsumerState<CardsScreen> {
     ref.watch(_recentTxnsProvider);
 
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Mis tarjetas'),
-        actions: [
-          IconButton(
-            icon: const Icon(Icons.calendar_month_outlined),
-            tooltip: 'Calendario de vencimientos',
-            onPressed: () => context.push('/calendar'),
-          ),
-        ],
-      ),
       floatingActionButton: FloatingActionButton.extended(
         heroTag: 'cards-new-account-fab',
         onPressed: () => _openEditSheet(context),
@@ -108,7 +98,15 @@ class _CardsScreenState extends ConsumerState<CardsScreen> {
           style: TextStyle(color: Colors.white, fontWeight: FontWeight.w600),
         ),
       ),
-      body: SafeArea(
+      body: BrandPage(
+        title: 'Mis tarjetas',
+        actions: [
+          IconButton(
+            icon: const Icon(Icons.calendar_month_outlined, color: Colors.white),
+            tooltip: 'Calendario de vencimientos',
+            onPressed: () => context.push('/calendar'),
+          ),
+        ],
         child: accountsAsync.when(
           data: (accounts) {
             if (accounts.isEmpty) {

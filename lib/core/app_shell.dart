@@ -26,6 +26,10 @@ class AppShell extends StatelessWidget {
     final location = GoRouterState.of(context).matchedLocation;
     final index = _indexForLocation(location);
     return Scaffold(
+      // El FAB y la barra inferior quedan detras del teclado en vez de subir
+      // con el: las pantallas hijas tienen su propio Scaffold que si aplica
+      // el inset del teclado a su contenido.
+      resizeToAvoidBottomInset: false,
       body: child,
       floatingActionButton: FloatingActionButton(
         heroTag: 'shell-fab',
@@ -34,11 +38,20 @@ class AppShell extends StatelessWidget {
         foregroundColor: Colors.white,
         elevation: 4,
         highlightElevation: 4,
-        // Circulo perfecto (requisito del usuario).
-        shape: const CircleBorder(),
+        // Circulo perfecto (requisito del usuario) con un borde suave verde
+        // claro (primary aclarado sobre blanco) que lo separa del notch.
+        shape: CircleBorder(
+          side: BorderSide(
+            color: Color.alphaBlend(
+              FinoraColors.primary.withValues(alpha: 0.35),
+              FinoraColors.surface,
+            ),
+            width: 3,
+          ),
+        ),
         child: const Icon(Icons.add),
       ),
-      floatingActionButtonLocation: FloatingActionButtonLocation.centerDocked,
+      floatingActionButtonLocation: const _LowerCenterDocked(),
       bottomNavigationBar: BottomAppBar(
         color: FinoraColors.surface,
         // Evita el tinte de superficie de M3 sobre la elevacion.
@@ -62,6 +75,20 @@ class AppShell extends StatelessWidget {
         ),
       ),
     );
+  }
+}
+
+/// `centerDocked` desplazado 6px hacia abajo: el FAB (56px) queda ~40% por
+/// encima del borde superior de la barra y ~60% dentro, en vez del 50-50 del
+/// `centerDocked` estandar.
+class _LowerCenterDocked extends FloatingActionButtonLocation {
+  const _LowerCenterDocked();
+
+  @override
+  Offset getOffset(ScaffoldPrelayoutGeometry scaffoldGeometry) {
+    final base =
+        FloatingActionButtonLocation.centerDocked.getOffset(scaffoldGeometry);
+    return Offset(base.dx, base.dy + 6);
   }
 }
 

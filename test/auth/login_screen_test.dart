@@ -17,9 +17,25 @@ void main() {
     expect(find.byType(TextField), findsNWidgets(2));
     expect(find.widgetWithText(FilledButton, 'Ingresar'), findsOneWidget);
     expect(
-      find.image(const AssetImage('assets/brand/logo_inicio.png')),
+      find.image(const AssetImage('assets/brand/finora_login.png')),
       findsOneWidget,
     );
+  });
+
+  testWidgets('el ojito alterna la visibilidad de la contraseña', (tester) async {
+    await tester.pumpWidget(buildApp());
+
+    TextField passwordField() => tester.widget<TextField>(find.byType(TextField).at(1));
+
+    expect(passwordField().obscureText, isTrue);
+
+    await tester.tap(find.byIcon(Icons.visibility_outlined));
+    await tester.pump();
+    expect(passwordField().obscureText, isFalse);
+
+    await tester.tap(find.byIcon(Icons.visibility_off_outlined));
+    await tester.pump();
+    expect(passwordField().obscureText, isTrue);
   });
 
   testWidgets('el toggle cambia el CTA a Crear cuenta', (tester) async {

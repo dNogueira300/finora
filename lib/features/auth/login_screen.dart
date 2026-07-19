@@ -18,6 +18,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   final _password = TextEditingController();
   bool _isRegister = false;
   bool _loading = false;
+  bool _obscurePassword = true;
 
   Future<void> _submit() async {
     setState(() => _loading = true);
@@ -70,11 +71,22 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                   child: Column(
                     crossAxisAlignment: CrossAxisAlignment.stretch,
                     children: [
-                      const Padding(
-                        padding: EdgeInsets.symmetric(
-                          vertical: FinoraTokens.s32,
+                      // La zona de marca (verde) ocupa el 30% del viewport,
+                      // con el logo centrado en ella. El logo escala hacia
+                      // abajo si el teclado reduce el alto disponible.
+                      SizedBox(
+                        height: constraints.maxHeight * 0.30,
+                        child: Center(
+                          child: ConstrainedBox(
+                            constraints: const BoxConstraints(maxHeight: 170),
+                            child: const Padding(
+                              padding: EdgeInsets.symmetric(
+                                vertical: FinoraTokens.s8,
+                              ),
+                              child: _BrandLogo(),
+                            ),
+                          ),
                         ),
-                        child: Center(child: _BrandLogo()),
                       ),
                       Expanded(
                         child: ContentSheet(
@@ -111,9 +123,24 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                               const SizedBox(height: FinoraTokens.s16),
                               TextField(
                                 controller: _password,
-                                obscureText: true,
-                                decoration: const InputDecoration(
+                                obscureText: _obscurePassword,
+                                decoration: InputDecoration(
                                   labelText: 'Contraseña',
+                                  suffixIcon: IconButton(
+                                    icon: Icon(
+                                      _obscurePassword
+                                          ? Icons.visibility_outlined
+                                          : Icons.visibility_off_outlined,
+                                      color: FinoraColors.textSecondary,
+                                    ),
+                                    tooltip: _obscurePassword
+                                        ? 'Mostrar contraseña'
+                                        : 'Ocultar contraseña',
+                                    onPressed: () => setState(
+                                      () => _obscurePassword =
+                                          !_obscurePassword,
+                                    ),
+                                  ),
                                 ),
                               ),
                               const SizedBox(height: FinoraTokens.s24),
@@ -139,7 +166,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                             color: FinoraColors.surface,
                                           ),
                                         )
-                                      : Text(primaryLabel),
+                                      : Text(
+                                          primaryLabel,
+                                          style: const TextStyle(
+                                            fontSize: 18,
+                                            fontWeight: FontWeight.w700,
+                                          ),
+                                        ),
                                 ),
                               ),
                               const SizedBox(height: FinoraTokens.s8),
@@ -151,7 +184,13 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
                                   foregroundColor: FinoraColors.primary,
                                   minimumSize: const Size(0, 44),
                                 ),
-                                child: Text(toggleLabel),
+                                child: Text(
+                                  toggleLabel,
+                                  style: const TextStyle(
+                                    fontSize: 16,
+                                    fontWeight: FontWeight.w700,
+                                  ),
+                                ),
                               ),
                             ],
                           ),
@@ -169,24 +208,17 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
   }
 }
 
-/// Logo de marca sobre el degradado, envuelto en un contenedor blanco (el
-/// asset `logo_inicio` tiene fondo claro y necesita contraste sobre el verde).
+/// Logo de marca directamente sobre el degradado (el asset `finora_login`
+/// tiene transparencia y contraste propio: no necesita contenedor blanco).
 class _BrandLogo extends StatelessWidget {
   const _BrandLogo();
 
   @override
   Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.all(FinoraTokens.s12),
-      decoration: BoxDecoration(
-        color: FinoraColors.surface,
-        borderRadius: BorderRadius.circular(FinoraTokens.rCard),
-      ),
-      child: Semantics(
-        label: 'Finora',
-        image: true,
-        child: Image.asset('assets/brand/logo_inicio.png', height: 120),
-      ),
+    return Semantics(
+      label: 'Finora',
+      image: true,
+      child: Image.asset('assets/brand/finora_login.png', fit: BoxFit.contain),
     );
   }
 }
