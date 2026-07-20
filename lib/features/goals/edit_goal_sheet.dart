@@ -6,6 +6,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../core/dates.dart';
 import '../../core/finora_colors.dart';
+import '../../core/finora_snackbar.dart';
 import '../../core/finora_tokens.dart';
 import '../../core/money.dart';
 import '../../data/local/database.dart';
@@ -81,17 +82,16 @@ class _EditGoalSheetState extends ConsumerState<EditGoalSheet> {
   Future<void> _save() async {
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Ingresa un nombre')));
+      FinoraSnackbar.error(context, 'Ingresa un nombre');
       return;
     }
     final targetCents = parseMoney(_targetCtrl.text);
     if (targetCents == null || targetCents <= 0) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Ingresa un monto objetivo válido')));
+      FinoraSnackbar.error(context, 'Ingresa un monto objetivo válido');
       return;
     }
 
+    final isNew = widget.goal == null;
     final id = widget.goal?.id ?? const Uuid().v4();
     final savedCents = widget.goal?.savedCents ?? 0;
     await ref.read(databaseProvider).goalsDao.upsert(SavingsGoalsCompanion.insert(
@@ -103,7 +103,10 @@ class _EditGoalSheetState extends ConsumerState<EditGoalSheet> {
           color: Value(_color),
           updatedAt: DateTime.now().toUtc(),
         ));
-    if (mounted) Navigator.of(context).pop();
+    if (mounted) {
+      FinoraSnackbar.success(context, isNew ? 'Meta creada' : 'Meta actualizada');
+      Navigator.of(context).pop();
+    }
   }
 
   @override

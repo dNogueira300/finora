@@ -8,6 +8,7 @@ import 'package:uuid/uuid.dart';
 import '../../core/category_icons.dart';
 import '../../core/dates.dart';
 import '../../core/finora_colors.dart';
+import '../../core/finora_snackbar.dart';
 import '../../core/finora_tokens.dart';
 import '../../core/finora_widgets.dart';
 import '../../core/money.dart';
@@ -196,6 +197,7 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
           if (mounted && _selectedCategoryId == category.id) {
             setState(() => _selectedCategoryId = null);
           }
+          if (mounted) FinoraSnackbar.success(context, 'Categoría eliminada');
         }
     }
   }
@@ -213,15 +215,11 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
   Future<void> _save() async {
     final cents = parseMoney(_amountCtrl.text);
     if (cents == null || cents <= 0) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Monto inválido')));
+      FinoraSnackbar.error(context, 'Monto inválido');
       return;
     }
     if (_selectedCategoryId == null || _selectedAccountId == null) {
-      ScaffoldMessenger.of(context).showSnackBar(
-        const SnackBar(content: Text('Selecciona una categoría y una cuenta')),
-      );
+      FinoraSnackbar.error(context, 'Selecciona una categoría y una cuenta');
       return;
     }
     await ref
@@ -258,7 +256,10 @@ class _AddTransactionScreenState extends ConsumerState<AddTransactionScreen> {
         // ignore: avoid_catches_without_on_clauses
       } catch (_) {}
     }
-    if (mounted) context.pop();
+    if (mounted) {
+      FinoraSnackbar.success(context, 'Movimiento registrado');
+      context.pop();
+    }
   }
 
   /// Un lado del control segmentado doble (pill full-width). El lado

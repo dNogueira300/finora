@@ -5,6 +5,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:uuid/uuid.dart';
 
 import '../../core/finora_colors.dart';
+import '../../core/finora_snackbar.dart';
 import '../../core/finora_tokens.dart';
 import '../../core/money.dart';
 import '../../data/local/database.dart';
@@ -92,8 +93,7 @@ class _EditAccountSheetState extends ConsumerState<EditAccountSheet> {
   Future<void> _save() async {
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) {
-      ScaffoldMessenger.of(context)
-          .showSnackBar(const SnackBar(content: Text('Ingresa un nombre')));
+      FinoraSnackbar.error(context, 'Ingresa un nombre');
       return;
     }
 
@@ -104,26 +104,25 @@ class _EditAccountSheetState extends ConsumerState<EditAccountSheet> {
 
     if (isCredit) {
       if (amountCents <= 0) {
-        ScaffoldMessenger.of(context).showSnackBar(
-            const SnackBar(content: Text('Ingresa una línea de crédito válida')));
+        FinoraSnackbar.error(context, 'Ingresa una línea de crédito válida');
         return;
       }
       statementDay = int.tryParse(_statementDayCtrl.text);
       paymentDueDay = int.tryParse(_paymentDueDayCtrl.text);
       if (!_isValidDay(statementDay) || !_isValidDay(paymentDueDay)) {
-        ScaffoldMessenger.of(context).showSnackBar(const SnackBar(
-            content: Text('Ingresa día de cierre y día de pago válidos (1-31)')));
+        FinoraSnackbar.error(
+            context, 'Ingresa día de cierre y día de pago válidos (1-31)');
         return;
       }
     }
 
     final last4Raw = _last4Ctrl.text.trim();
     if (last4Raw.isNotEmpty && !RegExp(r'^\d{4}$').hasMatch(last4Raw)) {
-      ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(content: Text('Los últimos 4 dígitos deben ser 4 números')));
+      FinoraSnackbar.error(context, 'Los últimos 4 dígitos deben ser 4 números');
       return;
     }
 
+    final isNew = widget.account == null;
     final id = widget.account?.id ?? const Uuid().v4();
     await ref.read(databaseProvider).accountsDao.upsert(AccountsCompanion.insert(
           id: id,
@@ -144,7 +143,11 @@ class _EditAccountSheetState extends ConsumerState<EditAccountSheet> {
     // propio try/catch): un fallo no debe impedir guardar la cuenta.
     await rescheduleCardRemindersFromDb(
         ref.read(databaseProvider), ref.read(notificationsServiceProvider));
-    if (mounted) Navigator.of(context).pop();
+    if (mounted) {
+      FinoraSnackbar.success(
+          context, isNew ? 'Cuenta creada' : 'Cuenta actualizada');
+      Navigator.of(context).pop();
+    }
   }
 
   @override
