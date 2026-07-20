@@ -4,6 +4,7 @@ import 'package:uuid/uuid.dart';
 
 import '../../core/category_icons.dart';
 import '../../core/finora_colors.dart';
+import '../../core/finora_snackbar.dart';
 import '../../core/finora_tokens.dart';
 import '../../data/local/database.dart';
 import '../../data/sync/sync_providers.dart';
@@ -78,11 +79,10 @@ class _EditCategorySheetState extends ConsumerState<EditCategorySheet> {
   Future<void> _save() async {
     final name = _nameCtrl.text.trim();
     if (name.isEmpty) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Ingresa un nombre')));
+      FinoraSnackbar.error(context, 'Ingresa un nombre');
       return;
     }
+    final isNew = widget.category == null;
     final id = widget.category?.id ?? const Uuid().v4();
     await ref
         .read(databaseProvider)
@@ -97,7 +97,11 @@ class _EditCategorySheetState extends ConsumerState<EditCategorySheet> {
             updatedAt: DateTime.now().toUtc(),
           ),
         );
-    if (mounted) Navigator.of(context).pop(id);
+    if (mounted) {
+      FinoraSnackbar.success(
+          context, isNew ? 'Categoría creada' : 'Categoría actualizada');
+      Navigator.of(context).pop(id);
+    }
   }
 
   @override

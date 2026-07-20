@@ -3,6 +3,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/finora_colors.dart';
+import '../../core/finora_snackbar.dart';
 import '../../core/finora_tokens.dart';
 import '../../core/finora_widgets.dart';
 import 'auth_providers.dart';
@@ -31,11 +32,7 @@ class _LoginScreenState extends ConsumerState<LoginScreen> {
       }
       // La navegación la maneja el redirect del router (Task 10).
     } on AuthException catch (e) {
-      if (mounted) {
-        ScaffoldMessenger.of(
-          context,
-        ).showSnackBar(SnackBar(content: Text(e.message)));
-      }
+      if (mounted) FinoraSnackbar.error(context, e.message);
     } finally {
       if (mounted) setState(() => _loading = false);
     }

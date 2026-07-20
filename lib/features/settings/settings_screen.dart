@@ -5,6 +5,7 @@ import 'package:go_router/go_router.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../core/finora_colors.dart';
+import '../../core/finora_snackbar.dart';
 import '../../core/finora_tokens.dart';
 import '../../core/finora_widgets.dart';
 import '../../core/money.dart';
@@ -173,9 +174,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
     final cents = parseMoney(text);
     if (cents == null || cents < 0) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Monto inválido')));
+      FinoraSnackbar.error(context, 'Monto inválido');
       return;
     }
     if (cents == _monthlyLimitCents) return;
@@ -224,9 +223,7 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
           _ChangePasswordDialog(auth: ref.read(authRepositoryProvider)),
     );
     if (ok == true && mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Contraseña actualizada')));
+      FinoraSnackbar.success(context, 'Contraseña actualizada');
     }
   }
 
@@ -244,13 +241,11 @@ class _SettingsScreenState extends ConsumerState<SettingsScreen> {
     }
     try {
       await ref.read(authRepositoryProvider).updateAlias(result.trim());
+      if (mounted) FinoraSnackbar.success(context, 'Alias actualizado');
     } on Object {
       if (mounted) {
-        ScaffoldMessenger.of(context).showSnackBar(
-          const SnackBar(
-            content: Text('No se pudo guardar el alias. Revisa tu conexión.'),
-          ),
-        );
+        FinoraSnackbar.error(
+            context, 'No se pudo guardar el alias. Revisa tu conexión.');
       }
     }
   }
@@ -668,11 +663,7 @@ class _ChangePasswordDialogState extends State<_ChangePasswordDialog> {
     super.dispose();
   }
 
-  void _showError(String message) {
-    ScaffoldMessenger.of(
-      context,
-    ).showSnackBar(SnackBar(content: Text(message)));
-  }
+  void _showError(String message) => FinoraSnackbar.error(context, message);
 
   Future<void> _save() async {
     final password = _passwordCtrl.text;

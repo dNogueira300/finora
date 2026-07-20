@@ -4,6 +4,7 @@ import 'package:flutter_riverpod/flutter_riverpod.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../core/finora_colors.dart';
+import '../../core/finora_snackbar.dart';
 import '../../core/finora_tokens.dart';
 import '../../core/finora_widgets.dart';
 import '../../core/money.dart';
@@ -235,6 +236,7 @@ Future<void> showAccountMenu(BuildContext context, WidgetRef ref, Account accoun
         isArchived: const Value(true),
         updatedAt: DateTime.now().toUtc(),
       ));
+      if (context.mounted) FinoraSnackbar.info(context, 'Cuenta archivada');
     case 'delete':
       final confirmed = await showDialog<bool>(
         context: context,
@@ -255,6 +257,7 @@ Future<void> showAccountMenu(BuildContext context, WidgetRef ref, Account accoun
       );
       if (confirmed == true) {
         await db.accountsDao.softDelete(account.id);
+        if (context.mounted) FinoraSnackbar.success(context, 'Cuenta eliminada');
       }
   }
 }

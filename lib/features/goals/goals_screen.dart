@@ -5,6 +5,7 @@ import 'package:intl/intl.dart';
 
 import '../../core/dates.dart';
 import '../../core/finora_colors.dart';
+import '../../core/finora_snackbar.dart';
 import '../../core/finora_tokens.dart';
 import '../../core/finora_widgets.dart';
 import '../../core/money.dart';
@@ -102,14 +103,11 @@ Future<void> _showContributeDialog(
 
   final cents = parseMoney(input);
   if (cents == null || cents <= 0) {
-    if (context.mounted) {
-      ScaffoldMessenger.of(
-        context,
-      ).showSnackBar(const SnackBar(content: Text('Monto inválido')));
-    }
+    if (context.mounted) FinoraSnackbar.error(context, 'Monto inválido');
     return;
   }
   await _addContribution(ref, goal, cents);
+  if (context.mounted) FinoraSnackbar.success(context, 'Abono registrado');
 }
 
 /// Contenido del dialogo "Abonar", extraido a un `StatefulWidget` propio
@@ -229,6 +227,7 @@ Future<void> showGoalMenu(
       );
       if (confirmed == true) {
         await ref.read(databaseProvider).goalsDao.softDelete(goal.id);
+        if (context.mounted) FinoraSnackbar.success(context, 'Meta eliminada');
       }
   }
 }
